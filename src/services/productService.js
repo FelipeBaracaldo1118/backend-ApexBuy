@@ -10,7 +10,7 @@ export async function getProductByExternalId(externalId) {
     FROM products
     WHERE external_id = $1
     `,
-    [externalId]
+    [String(externalId)]
   );
 
   return result.rows[0]; // devuelve { id, name } o undefined
