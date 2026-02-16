@@ -27,6 +27,23 @@ Esta versión corresponde a la Fase 1 del MVP, donde se construye la base del ba
     - Exponer endpoints para consumo del frontend
     - Preparar la integración futura de scrapers automatizados
 
+## Lo que se ha creado
+
+- **Config**
+  - `config/env.js` — Carga de variables de entorno (`.env`) para el backend.
+  - `config/database.js` — Conexión a PostgreSQL mediante un pool usando `DATABASE_URL`.
+
+- **Servicios**
+  - `services/productService.js` — Búsqueda de productos por `external_id` para vincular datos del proveedor con la base de datos.
+  - `services/priceService.js` — Guardado del histórico de precios en la tabla `prices`.
+  - `services/boseService.js` — Obtención de datos de producto (precio, nombre, etc.) desde la fuente Bose.
+
+- **Rutas**
+  - `routes/update.js` — Endpoint para actualizar precios desde Bose: obtiene datos del proveedor, busca el producto en la DB, guarda el precio y responde. Base para la integración con scrapers o fuentes externas.
+
+- **Servidor**
+  - `server.js` — Express con CORS, JSON, health check (`/api/health`) y verificación de conexión a la base de datos.
+
 ## Arquitectura General
 ### Cliente - Servidor 
 
