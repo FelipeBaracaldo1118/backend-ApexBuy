@@ -1,48 +1,42 @@
 import express from "express";
-import { getBoseProduct } from "../services/boseService.js";
-import { savePrice } from "../services/priceService.js";
-import { getProductByExternalId } from "../services/productService.js";
+import {
+  updateBoseProducts,
+  updateSingleBoseProduct
+} from "../services/updateService.js";
 
 const router = express.Router();
 
-router.get("/bose-s1", async (req, res) => {
+/**
+ * 🔵 Actualizar TODOS los productos Bose
+ * GET /api/update/bose
+ */
+router.get("/bose", async (req, res) => {
   try {
-
-    // Obtener datos desde Bose
-    const data = await getBoseProduct(
-      "https://bose.co/products/parlante-bose-s1-pro-plus.js"
-    );
-
-    // Buscar producto en DB usando external_id
-    const product = await getProductByExternalId(data.external_id);
-    
-    if (!product) {
-      return res.status(404).json({
-        error: "Producto no existe en la base de datos",
-      });
-    }
-
-    console.log(data)
-   
-    // Guardar precio (histórico)
-    await savePrice(
-      product.id,   // UUID real desde DB
-      1,            // source_id = Bose
-      data.price,
-      data.available
-    );
-
-    //  Respuesta
-    res.json({
-      message: "Precio actualizado correctamente!",
-      data,
-    });
+    const result = await updateBoseProducts();
+    res.json(result);
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: "Error al actualizar el precio",
-    });
+    console.error("❌ Error update Bose:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+/**
+ * 🔵 Actualizar UN producto Bose
+ * GET /api/update/bose/:handle
+ */
+router.get("/bose/:handle", async (req, res) => {
+  try {
+    const { handle } = req.params;
+
+    const result = await updateSingleBoseProduct(handle);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error("❌ Error update Bose:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
