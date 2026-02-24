@@ -17,7 +17,7 @@ export async function getBoseProduct(url) {
     return {
       external_id: data.id,
       title: data.title,
-      price: data.price / 100, // Shopify maneja centavos
+      price: data.price, // Shopify maneja centavos
       available: data.available,
       image: `https:${data.featured_image}`,
       vendor: data.vendor,
