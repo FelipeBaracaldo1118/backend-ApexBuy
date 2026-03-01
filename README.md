@@ -38,13 +38,15 @@ Esta versión corresponde a la Fase 1 del MVP, donde se construye la base del ba
   - `services/priceService.js` — Guardado del histórico de precios en la tabla `prices`.
   - `services/boseService.js` — Obtención de datos de producto (precio, disponibilidad, imagen, etc.) desde la fuente Bose (JSON).
   - `services/analysisService.js` — Análisis de precios por producto: obtiene precios por fuente, distingue proveedor (Bose/Samsung) vs competencia (Ktronix/Mansion), calcula costo, ganancia, margen y clasifica la oportunidad (ALTA/MEDIA/BAJA).
+  - `services/Productgroupservice.js` — Gestión de grupos de productos: creación, listado, obtención por ID, vinculación/desvinculación de productos y conteo de productos por grupo.
 
 - **Rutas**
   - `routes/update.js` — Montada en `/api/update`. Actualiza precios desde Bose: obtiene datos del proveedor, busca el producto en la DB, guarda el precio y responde. Base para scrapers o fuentes externas (ej. `GET /api/update/bose-s1`).
   - `routes/analysis.js` — Montada en `/api/analysis`. Endpoint para obtener el análisis de un producto por ID: precios proveedor/competencia, margen y nivel de oportunidad (ej. `GET /api/analysis/:productId`).
+  - `routes/admin.js` — Montada en `/api/admin`. Endpoints de administración para grupos de productos: crear grupos, listar grupos, obtener detalle de un grupo con sus productos, vincular múltiples productos a un grupo y desvincular productos.
 
 - **Servidor**
-  - `server.js` — Express con CORS, JSON, health check (`/api/health`), rutas `/api/update` y `/api/analysis`, y verificación de conexión a la base de datos.
+  - `server.js` — Express con CORS, JSON, health check (`/api/health`), rutas `/api/update`, `/api/analysis` y `/api/admin`, y verificación de conexión a la base de datos.
 
 ## Arquitectura General
 ### Cliente - Servidor 

@@ -3,12 +3,12 @@ import { pool } from "../config/database.js";
 /**
  * Crear un nuevo grupo de productos
  */
-export async function createProductGroup({ name, description = null, category = null }) {
+export async function createProductGroup({ name, brand, description = null, category = null }) {
   const result = await pool.query(
-    `INSERT INTO product_groups (name, description, category)
-     VALUES ($1, $2, $3)
+    `INSERT INTO product_groups (name, brand, description, category)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [name, description, category]
+    [name, brand, description, category]
   );
   return result.rows[0];
 }

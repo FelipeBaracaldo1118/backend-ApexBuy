@@ -5,6 +5,7 @@ import cors from "cors";
 import { pool } from "./config/database.js";
 import analysisRoutes from "./routes/analysis.js"
 import updateRoutes from "./routes/update.js"
+import adminRoutes from "./routes/admin.js"
 const app = express();
 
 // =============================
@@ -14,6 +15,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/update", updateRoutes)
 app.use("/api/analysis", analysisRoutes)
+app.use("/api/admin", adminRoutes)
 
 // =============================
 // Test conexión DB
