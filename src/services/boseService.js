@@ -1,4 +1,13 @@
 export async function getBoseProduct(url) {
+
+  //teniendo en cuenta el tipo de dato que se obtiene de la API de Bose, se debe convertir a un objeto JavaScript
+  // se usa headers para simular un navegador web
+  // se usa fetch para obtener los datos de la API de Bose
+  // se usa await para esperar a que se obtengan los datos de la API de Bose
+  // se usa try para manejar los errores que se puedan presentar
+  // se usa catch para manejar los errores que se puedan presentar
+  // se usa return para retornar los datos de la API de Bose
+  // se usa console.error para imprimir los errores que se puedan presentar
   try {
     const response = await fetch(url, {
       headers: {

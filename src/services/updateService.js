@@ -3,8 +3,8 @@ import { getOrCreateProduct } from "./productService.js";
 import { savePrice } from "./priceService.js";
 import { getSourceByName } from "./sourceService.js";
 
-/**
- * 🔵 Actualiza UN producto Bose
+/*
+ Actualiza UN producto Bose
  */
 export const updateSingleBoseProduct = async (handle) => {
 

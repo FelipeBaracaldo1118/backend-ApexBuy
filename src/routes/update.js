@@ -7,8 +7,8 @@ import {
 const router = express.Router();
 
 /**
- * 🔵 Actualizar TODOS los productos Bose
- * GET /api/update/bose
+Actualizar TODOS los productos Bose
+ GET /api/update/bose
  */
 router.get("/bose", async (req, res) => {
   try {
@@ -23,8 +23,8 @@ router.get("/bose", async (req, res) => {
 
 
 /**
- * 🔵 Actualizar UN producto Bose
- * GET /api/update/bose/:handle
+ Actualizar UN producto Bose
+ GET /api/update/bose/:handle
  */
 router.get("/bose/:handle", async (req, res) => {
   try {
