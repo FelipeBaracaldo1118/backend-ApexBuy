@@ -1,23 +1,23 @@
 /**
- * Estándar de datos para extracción.
- *
- * TODAS las fuentes (boseService, samsungService, scrapers) deben pasar
- * su output por esta función antes de enviarlo al pipeline.
- *
- * Esto garantiza que productService y priceService siempre reciben
- * exactamente los campos que esperan, sin importar la fuente.
+ Estándar de datos para extracción.
+ 
+  TODAS las fuentes (boseService, samsungService, scrapers) deben pasar
+  su output por esta función antes de enviarlo al pipeline.
+ 
+  Esto garantiza que productService y priceService siempre reciben
+  exactamente los campos que esperan, sin importar la fuente.
  */
 
 // Campos requeridos que toda fuente debe proveer
 const REQUIRED_FIELDS = ["external_id", "title", "price", "vendor"];
 
 /**
- * Normaliza y valida el output crudo de cualquier servicio de extracción.
- *
- * @param {object} raw        - Datos crudos del servicio (boseService, scraper, etc.)
- * @param {string} sourceName - Nombre legible de la fuente, para mensajes de error
- * @returns {NormalizedProduct}
- * @throws {Error} si algún campo requerido está ausente o el precio es inválido
+  Normaliza y valida el output crudo de cualquier servicio de extracción.
+ 
+  @param {object} raw        - Datos inciales de los productos extraidos de cada pagina (boseService, scraper, etc.)
+  @param {string} sourceName - Nombre de la fuente donde se extrajo el producto, para mensajes de error
+  @returns {NormalizedProduct}
+  @throws {Error} si algún campo requerido está ausente o el precio es inválido
  */
 export function normalizeProduct(raw, sourceName = "unknown") {
 
@@ -40,7 +40,7 @@ export function normalizeProduct(raw, sourceName = "unknown") {
   }
 
   //  Retornar objeto normalizado 
-  // Esta es la forma canónica que todo el pipeline espera.
+
   return {
     external_id: String(raw.external_id),
     title:       String(raw.title).trim(),

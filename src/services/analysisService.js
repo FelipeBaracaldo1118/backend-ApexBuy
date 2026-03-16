@@ -4,9 +4,9 @@ import { pool } from "../config/database.js";
 // Ajustar este valor si se obtienen costos reales de facturación.
 const SUPPLIER_COST_RATIO = 0.75;
 
-/**
- * Obtener análisis por product_group_id
- * Compara precios de todos los productos vinculados al grupo
+/*
+ Obtener análisis por product_group_id
+  Compara precios de todos los productos vinculados al grupo
  */
 export async function getProductGroupAnalysis(productGroupId) {
 
@@ -64,7 +64,7 @@ export async function getProductGroupAnalysis(productGroupId) {
       )
     : null;
 
-  // ── Margen y oportunidad ─────────────────────────────────────────────────
+  // Margen y oportunidad 
   let profit            = null;
   let marginPercentage  = null;
   let opportunity       = null;
@@ -78,7 +78,7 @@ export async function getProductGroupAnalysis(productGroupId) {
     else                            opportunity = "BAJA";
   }
 
-  // ── Detalle por fuente ────────────────────────────────────────────────────
+  // Detalle por fuente 
   const sourceBreakdown = result.rows.map(r => ({
     productId:  r.product_id,
     productName: r.product_name,
@@ -90,7 +90,7 @@ export async function getProductGroupAnalysis(productGroupId) {
     updatedAt:  r.price_date,
   }));
 
-  // ── Status del análisis ───────────────────────────────────────────────────
+  // Status del análisis 
   let status = "complete";
   if (supplierRows.length === 0)   status = "missing_supplier";
   else if (competitorRows.length === 0) status = "missing_competitor";
@@ -111,9 +111,9 @@ export async function getProductGroupAnalysis(productGroupId) {
   };
 }
 
-/**
- * Análisis legacy por product_id individual (mantener compatibilidad)
- * Solo analiza el historial de precios de ese producto específico
+/*
+  Análisis legacy por product_id individual (mantener compatibilidad)
+  Solo analiza el historial de precios de ese producto específico
  */
 export async function getProductAnalysis(productId) {
 
@@ -136,7 +136,7 @@ export async function getProductAnalysis(productId) {
     return null;
   }
 
-  // El resto del código es igual al anterior analysisService
+ 
   const supplierRows   = result.rows.filter(r => r.source_role === "provider");
   const competitorRows = result.rows.filter(r => r.source_role === "competitor");
 

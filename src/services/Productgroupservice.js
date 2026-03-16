@@ -1,7 +1,7 @@
 import { pool } from "../config/database.js";
 
-/**
- * Crear un nuevo grupo de productos
+/*
+  Crear un nuevo grupo de productos
  */
 export async function createProductGroup({ name, brand, description = null, category = null }) {
   const result = await pool.query(
@@ -13,8 +13,8 @@ export async function createProductGroup({ name, brand, description = null, cate
   return result.rows[0];
 }
 
-/**
- * Obtener un grupo por ID
+/*
+  Obtener un grupo por ID
  */
 export async function getProductGroupById(groupId) {
   const result = await pool.query(
@@ -24,8 +24,8 @@ export async function getProductGroupById(groupId) {
   return result.rows[0] || null;
 }
 
-/**
- * Obtener todos los productos de un grupo
+/*
+  Obtener todos los productos de un grupo
  */
 export async function getProductsByGroup(groupId) {
   const result = await pool.query(
@@ -43,8 +43,8 @@ export async function getProductsByGroup(groupId) {
   return result.rows;
 }
 
-/**
- * Vincular un producto existente a un grupo
+/*
+  Vincular un producto existente a un grupo
  */
 export async function linkProductToGroup(productId, groupId) {
   const result = await pool.query(
@@ -57,8 +57,8 @@ export async function linkProductToGroup(productId, groupId) {
   return result.rows[0] || null;
 }
 
-/**
- * Vincular múltiples productos a un grupo (útil para setup inicial)
+/*
+ Vincular múltiples productos a un grupo (útil para setup inicial)
  */
 export async function linkMultipleProductsToGroup(productIds, groupId) {
   const result = await pool.query(
@@ -71,8 +71,8 @@ export async function linkMultipleProductsToGroup(productIds, groupId) {
   return result.rows;
 }
 
-/**
- * Desvincular un producto de su grupo
+/*
+  Desvincular un producto de su grupo
  */
 export async function unlinkProductFromGroup(productId) {
   const result = await pool.query(
@@ -85,8 +85,8 @@ export async function unlinkProductFromGroup(productId) {
   return result.rows[0] || null;
 }
 
-/**
- * Listar todos los grupos con conteo de productos
+/*
+  Listar todos los grupos con conteo de productos
  */
 export async function listAllGroups() {
   const result = await pool.query(
