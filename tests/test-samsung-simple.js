@@ -49,11 +49,11 @@ scrapeSamsungProduct(url)
     console.log('   1. No tienes conexión a internet');
     console.log('   2. Samsung cambió la estructura HTML');
     console.log('   3. La URL no es válida');
-    console.log('   4. Falta instalar Cheerio: npm install cheerio');
+    console.log('   4. Falta instalar Cheerio o Puppeteer: npm install cheerio // npm install puppeteer');
     
-    console.log('\n💡 DEBUGGING:');
-    console.log('   Revisa los logs arriba para ver en qué paso falló');
-    console.log('   Cada paso del scraper tiene console.log() con emojis\n');
+    console.log('\n DEBUGGING:');
+    console.log('   Revisar los logs arriba para ver en qué paso falló');
+   r
     
     console.log('='.repeat(70) + '\n');
     
