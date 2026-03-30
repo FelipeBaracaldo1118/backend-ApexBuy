@@ -4,7 +4,7 @@ import { scrapeSamsungProduct } from '../src/services/samsungScraper.js';
 console.log(' INICIANDO TEST SIMPLE DE SAMSUNG\n');
 console.log('='.repeat(70));
 
-// URL de prueba: TV UHD 50"
+
 const url = 'https://www.samsung.com/co/refrigerators/side-by-side/rs4000dc-sbside-with-large-capacity-rs4000dc-side-by-side-with-large-capacity-578l-black-rs57dg4100b4co/';
 
 console.log(`URL a probar:\n   ${url}\n`);
