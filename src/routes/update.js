@@ -6,7 +6,7 @@ import {
 
 const router = express.Router();
 
-/**
+/**ç
 Actualizar TODOS los productos Bose
  GET /api/update/bose
  */
