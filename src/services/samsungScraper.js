@@ -3,10 +3,6 @@
 
 // Este archivo usa Puppeteer (navegador headless) en lugar de Cheerio porque Samsung carga los precios dinámicamente con JavaScript
 
-// IMPORTANTE: Requiere instalar Puppeteer
-// npm install puppeteer
-
-
 import puppeteer from 'puppeteer';
 import { normalizeProduct } from "./normalizeProduct.js";
 
@@ -220,9 +216,9 @@ export async function scrapeSamsungProduct(url) {
         }
       }
 
-      // ──────────────────────────────────────────────────────────────────
+      
       // EXTRAER CÓDIGO DE MODELO
-      // ──────────────────────────────────────────────────────────────────
+      
       
       let codigoModelo = '';
       
@@ -239,9 +235,9 @@ export async function scrapeSamsungProduct(url) {
         codigoModelo = ultimaParte.toUpperCase().replace(/-/g, '');
       }
 
-      // ──────────────────────────────────────────────────────────────────
+      
       // RETORNAR TODOS LOS DATOS
-      // ──────────────────────────────────────────────────────────────────
+      
       
       return {
         titulo: titulo,
@@ -258,9 +254,9 @@ export async function scrapeSamsungProduct(url) {
     console.log(`   Disponible: ${datos.disponible}`);
     console.log(`   Código: ${datos.codigoModelo}`);
 
-    // ========================================================================
+   
     // PASO 6: PROCESAR EL PRECIO
-    // ========================================================================
+    
     
     const precio = parsearPrecioSamsung(datos.precioTexto);
 
@@ -278,9 +274,9 @@ export async function scrapeSamsungProduct(url) {
       }
     }
 
-    // ========================================================================
+  
     // PASO 7: ENSAMBLAR OBJETO FINAL
-    // ========================================================================
+    
     
     const datosExtraidos = {
       external_id: datos.codigoModelo || 'SAMSUNG_' + Date.now(),
@@ -293,24 +289,24 @@ export async function scrapeSamsungProduct(url) {
 
     console.log(`✅ Datos procesados exitosamente`);
 
-    // ========================================================================
+   
     // PASO 8: NORMALIZAR Y RETORNAR
-    // ========================================================================
+  
     
     return normalizeProduct(datosExtraidos, "Samsung");
 
   } catch (error) {
-    // ========================================================================
+    
     // MANEJO DE ERRORES
-    // ========================================================================
+    
     
     console.error('❌ Error en scraper de Samsung:', error.message);
     throw new Error(`Error scraping Samsung (${url}): ${error.message}`);
 
   } finally {
-    // ========================================================================
+  
     // PASO 9: CERRAR EL NAVEGADOR SIEMPRE
-    // ========================================================================
+    
     // Esto se ejecuta incluso si hubo un error
     // Es MUY IMPORTANTE cerrar el navegador para no tener memory leaks
     
@@ -322,8 +318,7 @@ export async function scrapeSamsungProduct(url) {
 }
 
 /**
- * Función auxiliar para convertir texto de precio a número
- * (Igual que en la versión con Cheerio)
+ Función auxiliar para convertir texto de precio a número
  */
 function parsearPrecioSamsung(precioTexto) {
   if (!precioTexto) {
@@ -332,7 +327,7 @@ function parsearPrecioSamsung(precioTexto) {
 
   let precioLimpio = String(precioTexto);
 
-  console.log(`🧹 Limpiando precio: "${precioLimpio}"`);
+  console.log(`Limpiando precio: "${precioLimpio}"`);
 
   // Eliminar símbolos y letras
   precioLimpio = precioLimpio.replace(/\$/g, '').trim();
