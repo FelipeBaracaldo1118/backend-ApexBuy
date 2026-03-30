@@ -6,9 +6,9 @@ import {
 
 const router = express.Router();
 
-/**ç
+/*
 Actualizar TODOS los productos Bose
- GET /api/update/bose
+GET /api/update/bose
  */
 router.get("/bose", async (req, res) => {
   try {
@@ -36,6 +36,34 @@ router.get("/bose/:handle", async (req, res) => {
 
   } catch (error) {
     console.error("❌ Error update Bose:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+router.get("/samsung", async (req, res) => {
+  try {
+    const result = await updateSamsungProducts();
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Error update Samsung:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/samsung-single", async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({
+        error: "Se requiere el parámetro 'url'",
+        ejemplo: "/api/update/samsung-single?url=https://..."
+      });
+    }
+    const result = await updateSingleSamsungProduct(url);
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
