@@ -36,7 +36,7 @@ export async function scrapeKtronixProduct(url) {
     }
 
     const html = await response.text();
-    console.log(`✅ HTML descargado (${html.length} caracteres)`);
+    console.log(` HTML descargado (${html.length} caracteres)`);
 
 
     // PASO 2: CARGAR EN CHEERIO
@@ -135,19 +135,18 @@ export async function scrapeKtronixProduct(url) {
     
     
     const datosExtraidos = {
-      external_id: codigoProducto,
-      title:       titulo,
-      price:       precio,
-      available:   true,    // ← Siempre true para competidores
-      image:       null,    // ← Sin imagen para competidores
-      vendor:      vendor,
-    };
+        external_id: codigoProducto,
+        title:       titulo,
+        price:       precio,
+        available:   true,
+        image:       null,
+        vendor:      "Ktronix",  //la guente de donde estamos sacando los datos
+      };
 
     console.log(` Scraping completado exitosamente`);
 
-    // ========================================================================
     // PASO 8: NORMALIZAR Y RETORNAR
-    // ========================================================================
+  
     
     return normalizeProduct(datosExtraidos, "Ktronix");
 
