@@ -39,7 +39,7 @@ export async function scrapeSamsungProduct(url) {
       ]
     });
 
-    console.log('🌐 Navegador iniciado');
+    console.log('Navegador iniciado');
 
    
     // PASO 2: CREAR UNA NUEVA PESTAÑA (PAGE)
@@ -83,9 +83,9 @@ export async function scrapeSamsungProduct(url) {
         '.price, [class*="price"], [data-price], meta[itemprop="price"]',
         { timeout: 10000 }
       );
-      console.log('💰 Elemento de precio encontrado');
+      console.log(' Elemento de precio encontrado');
     } catch (error) {
-      console.log('⚠️ No se detectó elemento de precio, intentando extraer de todas formas...');
+      console.log(' No se detectó elemento de precio, intentando extraer de todas formas...');
     }
 
     
@@ -287,7 +287,7 @@ export async function scrapeSamsungProduct(url) {
       vendor:      'Samsung',
     };
 
-    console.log(`✅ Datos procesados exitosamente`);
+    console.log(`Datos procesados exitosamente`);
 
    
     // PASO 8: NORMALIZAR Y RETORNAR
