@@ -1,147 +1,373 @@
-# ApexBuy — Backend (análisis de mercado)
+# ApexBuy — Backend
 
-## Qué es este repositorio
+Monitoreo competitivo de precios para compras y decisiones comerciales.
 
-Backend en **Node.js** para **monitoreo competitivo de precios**: obtiene precios de sitios de **proveedores** (Bose, Samsung) y de **competencia** (Ktronix), los guarda en **PostgreSQL** y expone una **API REST** para el dashboard y para análisis (margen, oportunidad, comparativas por grupo).
-
----
-
-## Estado actual (lo que ya está implementado)
-
-| Área | Qué hay hoy |
-|------|-------------|
-| **Catálogo de negocio** | **7 líneas de producto** a vigilar (las mismas referencias se comparan en dos frentes). |
-| **Registros en base** | **14 productos** persistidos: **7** filas ligadas a fuentes **proveedor** (Bose + Samsung) y **7** a la fuente **competidor** (Ktronix), alineados para comparar el mismo universo de ítems. |
-| **Fuentes en código** | **Bose** (API JSON), **Samsung** (navegador headless), **Ktronix** (HTML parseado). |
-| **Histórico** | Cada actualización inserta en la tabla de precios (`prices`) para análisis temporal. |
-| **Normalización** | Todo lo extraído pasa por `normalizeProduct` antes de crear/actualizar productos y precios. |
-| **Grupos (admin)** | CRUD de **grupos de productos** y vínculo producto ↔ grupo para análisis agregado. |
+**Stack principal:** Node.js (ESM), Express 5, PostgreSQL, Puppeteer (Samsung), Cheerio (Ktronix).
 
 ---
 
-## Stack técnico
+## Tabla de contenidos
 
-- **Runtime:** Node.js (ES modules).
-- **API:** Express 5, CORS, JSON body.
-- **Base de datos:** PostgreSQL vía `pg` (pool + `DATABASE_URL`).
-- **Extracción:** **Cheerio** (Ktronix, HTML estático), **Puppeteer** (Samsung, precio/contenido dinámico), **fetch + JSON** (Bose, endpoint `.js` tipo Shopify).
-- **Desarrollo:** `nodemon` (`npm run dev`).
+- [¿Qué es ApexBuy?](#que-es-apexbuy)
+- [Características principales](#caracteristicas)
+- [Arquitectura del sistema](#arquitectura)
+- [Estado actual](#estado-actual)
+- [Resultados de negocio](#resultados-negocio)
+- [Tecnologías](#tecnologias)
+- [Prerrequisitos](#prerrequisitos)
+- [Instalación paso a paso](#instalacion)
+- [Configuración detallada](#configuracion)
+- [Ejemplos de uso (curl)](#ejemplos-curl)
+- [Esquema SQL (referencia)](#esquema-sql)
+- [Explicación del análisis](#analisis)
+- [Testing](#testing)
+- [Roadmap](#roadmap)
+- [Guía de contribución](#contribucion)
+- [Estadísticas del proyecto](#estadisticas)
 
----
+<a id="que-es-apexbuy"></a>
 
-## Cómo se actualizan los precios (flujo)
+## ¿Qué es ApexBuy?
 
-1. Se elige la fuente (Bose / Samsung / Ktronix) o se lanza **todas** con un solo endpoint.
-2. Se obtienen datos crudos (API o scraper).
-3. **`normalizeProduct`** valida campos mínimos y forma del precio.
-4. **`getOrCreateProduct`** busca por `external_id` o crea fila en `products`.
-5. **`getSourceByName`** resuelve el `source_id` (Bose, Samsung, Ktronix deben existir en `sources`).
-6. **`savePrice`** registra el precio en `prices`.
-
-Orden interno en actualización global: **Bose → Samsung → Ktronix** (rápido → lento por Puppeteer → medio con Cheerio).
-
----
-
-## Fuentes: rol y técnica
-
-| Fuente | Rol típico | Método | Cantidad configurada en código |
-|--------|------------|--------|--------------------------------|
-| **Bose** | Proveedor | API `https://bose.co/products/{handle}.js` | **3** handles |
-| **Samsung** | Proveedor | **Puppeteer** (`samsungScraper.js`) | **4** URLs |
-| **Ktronix** | Competidor | **Cheerio** (`ktronixScraper.js`) | **7** URLs |
-
-En una corrida completa (`/api/update/all-providers`) se intentan **14** actualizaciones de producto (3 + 4 + 7).
+**ApexBuy** es el backend de un sistema que **recolecta precios** de **tiendas proveedor** (Bose, Samsung) y de **competencia** (Ktronix), los **normaliza**, los **guarda en PostgreSQL** y expone una **API REST** para **analizar márgenes y oportunidades** frente al mercado. En una frase: *automatiza la vigilancia de precios y entrega señales claras (ALTA / MEDIA / BAJA) para priorizar dónde comprar o vender mejor.*
 
 ---
 
-## API REST (rutas montadas)
+<a id="caracteristicas"></a>
 
-**Base:** el servidor escucha el puerto de `PORT` o **3000**.
+## Características principales
 
-### Salud
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/health` | Comprueba que el backend responde. |
-
-### Actualización de precios — prefijo `/api/update`
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/update/bose` | Actualiza los **3** productos Bose configurados. |
-| `GET` | `/api/update/bose/:handle` | Actualiza **un** producto Bose por handle (slug del `.js`). |
-| `GET` | `/api/update/samsung` | Actualiza los **4** Samsung configurados (Puppeteer). |
-| `GET` | `/api/update/samsung-single?url=...` | Un Samsung por URL completa. |
-| `GET` | `/api/update/ktronix` | Actualiza los **7** Ktronix configurados (Cheerio). |
-| `GET` | `/api/update/ktronix-single?url=...` | Un Ktronix por URL (debe ser `ktronix.com`). |
-| `GET` | `/api/update/all-providers` | Ejecuta Bose + Samsung + Ktronix y devuelve resumen (200 si todo OK, 207 si hubo fallos parciales). |
-
-### Análisis — prefijo `/api/analysis`
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/analysis/product/:productId` | Análisis por **UUID** de producto (precios por fuente, margen, oportunidad). |
-| `GET` | `/api/analysis/group/:groupId` | Análisis de un **grupo** de productos (comparativa proveedores vs competidores cuando hay datos). |
-| `GET` | `/api/analysis/group/:groupId/supplier-vs-competitor` | Misma base que el anterior, respuesta orientada a comparativa detallada y *gaps* (202 si faltan datos de un lado). |
-
-### Administración de grupos — prefijo `/api/admin`
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/admin/groups` | Lista grupos con conteo de productos. |
-| `GET` | `/api/admin/groups/:groupId` | Detalle del grupo + productos asociados. |
-| `POST` | `/api/admin/groups` | Crea grupo (`name`, `brand` obligatorios; `description`, `category` opcionales). |
-| `POST` | `/api/admin/groups/:groupId/link` | Vincula `productIds[]` al grupo. |
-| `DELETE` | `/api/admin/products/:productId/unlink` | Quita el producto del grupo. |
+| | |
+|---|:-:|
+| **Multi-fuente** | Bose (API JSON), Samsung (Puppeteer), Ktronix (Cheerio). |
+| **14 SKUs operativos** | 7 líneas de catálogo × 2 frentes (proveedor + competidor). |
+| **Pipeline único** | `normalizeProduct` → `getOrCreateProduct` → `savePrice`. |
+| **Actualización masiva** | Un endpoint ejecuta Bose → Samsung → Ktronix en orden. |
+| **Análisis por producto y por grupo** | Márgenes, competencia (min/max/promedio), clasificación de oportunidad. |
+| **Administración de grupos** | Crear grupos, listar, vincular / desvincular productos. |
 
 ---
 
-## Archivos principales (por carpeta)
+<a id="arquitectura"></a>
 
-- **`src/config/`** — `env.js` (dotenv), `database.js` (pool PostgreSQL).
-- **`src/services/`**
-  - `boseService.js` — Descarga JSON de producto Bose.
-  - `samsungScraper.js` — Scraping Samsung con **Puppeteer**.
-  - `ktronixScraper.js` — Scraping Ktronix con **Cheerio**.
-  - `normalizeProduct.js` — Validación y forma única del objeto producto para el pipeline.
-  - `productService.js` — `getProductByExternalId`, `getOrCreateProduct`, `createProduct`.
-  - `sourceService.js` — `getSourceByName` (resuelve fuentes por nombre).
-  - `priceService.js` — Inserción en histórico de precios.
-  - `updateService.js` — Orquesta Bose, Samsung, Ktronix y `updateAllProviders`.
-  - `analysisService.js` — Lógica de análisis por producto y por grupo.
-  - `Productgroupservice.js` — Persistencia de grupos y vínculos producto–grupo.
-- **`src/routes/`** — `update.js`, `analysis.js`, `admin.js`.
-- **`src/server.js`** — Arranque Express y montaje de `/api/update`, `/api/analysis`, `/api/admin`.
-- **`tests/test-samsung-simple.js`** — Script manual que llama al scraper Samsung con una URL de ejemplo y muestra el resultado en consola.
+## Arquitectura del sistema
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Cliente (dashboard / scripts)               │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ HTTP (REST)
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Express 5  (src/server.js)                    │
+│  /api/health  /api/update  /api/analysis  /api/admin           │
+└────────────┬───────────────────────────────┬────────────────────┘
+             │                               │
+             ▼                               ▼
+┌────────────────────────────┐   ┌────────────────────────────────┐
+│  Servicios de extracción    │   │  Servicios de negocio           │
+│  boseService (fetch JSON)  │   │  productService, priceService   │
+│  samsungScraper (Puppeteer)│   │  analysisService, Productgroup…  │
+│  ktronixScraper (Cheerio)  │   │  updateService (orquestación)    │
+└────────────┬───────────────┘   └────────────────┬───────────────┘
+             │                                     │
+             └──────────────────┬──────────────────┘
+                                ▼
+                    ┌───────────────────────┐
+                    │    PostgreSQL          │
+                    │  sources, products,    │
+                    │  prices, product_groups│
+                    └───────────────────────┘
+```
 
 ---
 
-## Configuración mínima
+<a id="estado-actual"></a>
 
-- Archivo **`.env`** en la raíz con al menos **`DATABASE_URL`** apuntando a tu instancia PostgreSQL.
-- Tablas esperadas incluyen al menos: `products`, `prices`, `sources`, `product_groups`, y columnas coherentes con los servicios (por ejemplo `products.external_id`, `sources.name`, etc.).
+## Estado actual
+
+| Área | Detalle de implementación |
+|------|---------------------------|
+| **Fuentes activas** | Bose (proveedor, API), Samsung (proveedor, Puppeteer), Ktronix (competidor, Cheerio). |
+| **Catálogo** | **7** referencias de negocio comparadas en dos bandas. |
+| **Persistencia** | **14** registros de producto alineados (7 proveedor + 7 competidor), más histórico en `prices`. |
+| **Rutas de actualización** | Masivo e individual por marca + `all-providers`. |
+| **Análisis** | Por `productId`, por `groupId`, y ruta detallada `supplier-vs-competitor`. |
+| **Admin** | CRUD de grupos y vínculos producto ↔ grupo. |
 
 ---
 
-## Cómo ejecutar en local
+<a id="resultados-negocio"></a>
+
+## Resultados de negocio
+
+El backend no fija “números de ejemplo” en código: las **métricas reales** salen de **tu base** después de cada corrida de precios. Lo que el sistema **sí entrega de forma consistente** es:
+
+| Salida | Utilidad para el negocio |
+|--------|--------------------------|
+| **Precio proveedor mínimo** | Costo de referencia de compra en canales propios. |
+| **Costo estimado** | \(0{,}75 \times\) precio proveedor (proxy hasta tener costos reales). |
+| **Competencia (min / max / promedio)** | Rango del mercado en Ktronix (y otras fuentes competidoras cuando existan). |
+| **Ganancia y margen %** | Señal de cuánto “aire” hay frente al retail competidor. |
+| **Oportunidad ALTA / MEDIA / BAJA** | Priorización rápida según umbrales del margen (ver [Explicación del análisis](#analisis)). |
+
+> **Nota:** Para reportes de negocio (totales ahorrados, SKUs en alerta, etc.), conviene consultar PostgreSQL o construir vistas y reportes sobre `prices` y la clasificación de oportunidad.
+
+---
+
+<a id="tecnologias"></a>
+
+## Tecnologías
+
+| Categoría | Uso en el proyecto |
+|-----------|-------------------|
+| **Node.js** | Runtime ESM (`"type": "module"`). |
+| **Express 5** | API HTTP, CORS, JSON. |
+| **PostgreSQL + `pg`** | Persistencia y consultas de análisis. |
+| **dotenv** | Variables de entorno. |
+| **Puppeteer** | Samsung (contenido dinámico). |
+| **Cheerio** | Ktronix (HTML estático). |
+| **nodemon** | Desarrollo (`npm run dev`). |
+
+Versiones concretas: ver [`package.json`](package.json).
+
+---
+
+<a id="prerrequisitos"></a>
+
+## Prerrequisitos
+
+- **Node.js** 18+ (recomendado 20 LTS).
+- **npm** (incluido con Node).
+- **PostgreSQL** accesible con una cadena de conexión (`DATABASE_URL`).
+- Para **Puppeteer**: en algunos entornos hace falta Chromium compatible (el paquete `puppeteer` lo gestiona; en servidores sin GUI suelen usarse flags ya presentes en `samsungScraper.js`).
+
+---
+
+<a id="instalacion"></a>
+
+## Instalación paso a paso
 
 ```bash
+git clone https://github.com/FelipeBaracaldo1118/backend-ApexBuy.git
+cd backend-ApexBuy
 npm install
+```
+
+Crea el archivo `.env` en la raíz (ver siguiente sección). Asegúrate de que la base tenga el esquema esperado (ver [Esquema SQL](#esquema-sql)).
+
+```bash
 npm run dev
 ```
 
-El servidor imprime la conexión a la base y queda escuchando en el puerto configurado.
+El servidor queda en `http://localhost:3000` salvo que cambies `PORT`.
 
 ---
 
-## Arquitectura general
+<a id="configuracion"></a>
 
+## Configuración detallada
+
+Ejemplo de `.env` (ajusta usuario, host y nombre de base):
+
+```env
+# Conexión obligatoria
+DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/apexbuy
+
+# Opcional (por defecto 3000)
+PORT=3000
 ```
-    Frontend (dashboard)
-            │
-            ▼
-    Backend API (Express)
-            │
-            ▼
-       PostgreSQL
+
+**Fuentes en base:** deben existir filas en `sources` con nombres que el código resuelve por nombre, por ejemplo `Bose`, `Samsung`, `Ktronix`, con `role` = `provider` o `competitor` según corresponda (el análisis filtra por `source_role`).
+
+---
+
+<a id="ejemplos-curl"></a>
+
+## Ejemplos de uso (curl)
+
+Sustituye `GROUP_ID` y `PRODUCT_ID` por UUIDs válidos de tu instancia.
+
+```bash
+# Salud
+curl -s http://localhost:3000/api/health
+
+# Actualizar todos los proveedores + competidor
+curl -s http://localhost:3000/api/update/all-providers
+
+# Solo Bose / Samsung / Ktronix (masivo)
+curl -s http://localhost:3000/api/update/bose
+curl -s http://localhost:3000/api/update/samsung
+curl -s http://localhost:3000/api/update/ktronix
+
+# Un producto por URL (codifica la URL en el cliente si hace falta)
+curl -s "http://localhost:3000/api/update/samsung-single?url=https%3A%2F%2Fwww.samsung.com%2Fco%2F..."
+curl -s "http://localhost:3000/api/update/ktronix-single?url=https%3A%2F%2Fwww.ktronix.com%2F..."
+
+# Análisis
+curl -s http://localhost:3000/api/analysis/product/PRODUCT_ID
+curl -s http://localhost:3000/api/analysis/group/GROUP_ID
+curl -s http://localhost:3000/api/analysis/group/GROUP_ID/supplier-vs-competitor
+
+# Admin: listar grupos
+curl -s http://localhost:3000/api/admin/groups
 ```
+
+---
+
+<a id="esquema-sql"></a>
+
+## Esquema SQL (referencia)
+
+> **Importante:** en el repo **no hay migraciones versionadas**. El siguiente DDL está **inferido de las consultas en `src/services/`**. Revísalo con tu DBA antes de aplicarlo en producción.
+
+```sql
+-- Extensiones (opcional, según versión de PostgreSQL)
+-- CREATE EXTENSION IF NOT EXISTS "pgcrypto";  -- para gen_random_uuid()
+
+CREATE TABLE sources (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                  TEXT NOT NULL UNIQUE,
+  type                  TEXT NOT NULL,           -- p. ej. 'api', 'scraping'
+  role                  TEXT NOT NULL,           -- 'provider' | 'competitor' (usado en análisis)
+  wholesale_discount    NUMERIC(5,2) DEFAULT 0
+);
+
+CREATE TABLE product_groups (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         TEXT NOT NULL,
+  brand        TEXT NOT NULL,
+  description  TEXT,
+  category     TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (brand, name)
+);
+
+CREATE TABLE products (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              TEXT NOT NULL,
+  external_id       TEXT NOT NULL,
+  brand             TEXT,
+  image             TEXT,
+  source_id         UUID NOT NULL REFERENCES sources(id),
+  product_group_id  UUID REFERENCES product_groups(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (external_id, source_id)
+);
+
+CREATE TABLE prices (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id  UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  source_id   UUID NOT NULL REFERENCES sources(id),
+  price       NUMERIC(14,2) NOT NULL,
+  available   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Índices recomendados
+CREATE INDEX idx_products_external_source ON products (external_id, source_id);
+CREATE INDEX idx_products_group ON products (product_group_id);
+CREATE INDEX idx_prices_product_created ON prices (product_id, created_at DESC);
+CREATE INDEX idx_prices_source ON prices (source_id);
+
+-- Vista: último precio por producto (útil para reportes)
+CREATE OR REPLACE VIEW v_latest_price_per_product AS
+SELECT DISTINCT ON (product_id)
+  product_id,
+  source_id,
+  price,
+  available,
+  created_at AS last_price_at
+FROM prices
+ORDER BY product_id, created_at DESC;
+```
+
+> **Nota de modelo:** el código de `productService` debe persistir `source_id` en `products` para que coincidan los `JOIN` de análisis y grupos. Si tu instancia aún no lo hace, alinea el `INSERT` con este esquema.
+
+---
+
+<a id="analisis"></a>
+
+## Explicación del análisis
+
+Constante en código (`analysisService.js`): **costo estimado del proveedor** = **75%** del menor precio observado entre fuentes con `role = provider`:
+
+\[
+C_{\text{proveedor}} = 0{,}75 \times P_{\text{proveedor,min}}
+\]
+
+Sobre precios de competencia se calculan mínimo, máximo y **promedio** \(\bar{P}_{\text{comp}}\) (sobre filas con `role = competitor`).
+
+\[
+\text{Ganancia} = \bar{P}_{\text{comp}} - C_{\text{proveedor}}
+\]
+
+\[
+\text{Margen \%} = \frac{\text{Ganancia}}{\bar{P}_{\text{comp}}} \times 100
+\]
+
+**Clasificación de oportunidad** (misma lógica para análisis por grupo y por producto):
+
+| Condición | Oportunidad |
+|-----------|-------------|
+| Margen % > 20 | **ALTA** |
+| Margen % > 10 | **MEDIA** |
+| En otro caso | **BAJA** |
+
+Si faltan precios de proveedor o de competidor, el estado devuelve `missing_supplier` o `missing_competitor` en lugar de completar el cálculo.
+
+---
+
+<a id="testing"></a>
+
+## Testing
+
+| Tipo | Cómo |
+|------|------|
+| **Manual API** | `npm run dev` + [curl](#ejemplos-curl) o Thunder Client / Postman. |
+| **Script Samsung** | `node tests/test-samsung-simple.js` (requiere red; abre Puppeteer). |
+| **Suite automatizada** | Aún no configurada (`npm test` es placeholder en `package.json`). |
+
+---
+
+<a id="roadmap"></a>
+
+## Roadmap
+
+- [ ] Suite de tests (p. ej. Jest) con mocks de fetch / HTML.
+- [ ] Segunda fuente competidora (p. ej. Mansion) alineada con los mismos 7 productos.
+- [ ] Autenticación en rutas `/api/admin` y/o `/api/update`.
+- [ ] Colas o cron para `all-providers` sin bloquear HTTP.
+- [ ] Sincronizar DDL con migraciones (Knex / Prisma / archivos SQL versionados).
+
+---
+
+<a id="contribucion"></a>
+
+## Guía de contribución
+
+1. **Fork** del repositorio y rama descriptiva (`feature/…`, `fix/…`).
+2. Cambios **acotados** al objetivo; seguir el estilo existente en `src/`.
+3. Probar localmente (`npm run dev`, endpoints críticos, script de Samsung si aplica).
+4. **Pull Request** con descripción clara: qué problema resuelve y cómo validarlo.
+5. Si tocás el esquema SQL, actualiza la sección [Esquema SQL](#esquema-sql) en este README o añade migraciones en el repo.
+
+---
+
+<a id="estadisticas"></a>
+
+## Estadísticas del proyecto
+
+| Métrica | Valor (aprox.) |
+|---------|----------------|
+| Archivos JS en `src/` | ~18 |
+| Líneas de código en servicios y rutas | ~2000+ |
+| Integraciones de precio | 3 (Bose, Samsung, Ktronix) |
+| SKUs monitoreados en flujo completo | 14 (7+7) |
+| Endpoints REST principales | 15+ (salud, update, analysis, admin) |
+
+---
+
+## Licencia
+
+Ver `package.json` (`license`).
