@@ -157,7 +157,7 @@ export async function scrapeSamsungProduct(url) {
       }
       
       // Intento 4: Buscar en todo el body texto que parezca precio
-      // Buscar patrones como "$2.999.000" o "2999000"
+
       if (!precioTexto) {
         const bodyText = document.body.innerText;
         
@@ -208,7 +208,7 @@ export async function scrapeSamsungProduct(url) {
       // Intento 2: Primera imagen de producto
       if (!imagenUrl) {
         const productImage = document.querySelector(
-          '.product-image img, .gallery img, [class*="product-img"] img, main img'
+          '.image__main'
         );
         
         if (productImage) {
@@ -349,26 +349,3 @@ function parsearPrecioSamsung(precioTexto) {
 
   return precioNumero;
 }
-
-// ============================================================================
-// NOTAS IMPORTANTES
-// ============================================================================
-//
-// 1. RENDIMIENTO:
-//    Puppeteer es más lento que Cheerio (~3-5 segundos vs ~1 segundo)
-//    pero es necesario porque Samsung usa JavaScript dinámico
-//
-// 2. MEMORIA:
-//    Puppeteer usa más memoria porque abre un navegador completo
-//    SIEMPRE cierra el navegador en el finally para evitar memory leaks
-//
-// 3. DEBUGGING:
-//    Si algo falla, cambia headless: false para ver el navegador
-//    También puedes tomar screenshots:
-//    await page.screenshot({ path: 'debug.png' });
-//
-// 4. HEADLESS EN SERVIDORES:
-//    Los args ('--no-sandbox', etc.) son necesarios para correr en servidores
-//    sin interfaz gráfica (como AWS, Heroku, etc.)
-//
-// ============================================================================

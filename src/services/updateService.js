@@ -111,3 +111,112 @@ export const updateSingleSamsungProduct = async (url) => {
 
   return { url, status: "ok", data };
 };
+
+export const updateAllProviders = async () => {
+  console.log('🚀 Actualizando todos los proveedores');
+  console.log('='.repeat(80) + '\n');  
+
+  const startTime = Date.now();
+  const results = {
+    summary: {
+      totalProviders: 0,  
+      totalProducts: 0,
+      successful: 0,
+      failed: 0, 
+      duration: 0,
+    },
+    providers: []  
+  };
+
+//Actualizamos primero Bose ya que consume la informacion por API y es mas rapido
+
+  try {
+    console.log('📱 Actualizando productos Bose...');
+    const boseResults = await updateBoseProducts();
+    
+    const boseSuccessful = boseResults.filter(r => r.status === "ok").length;
+    const boseFailed = boseResults.filter(r => r.status === "error").length;
+   
+    results.providers.push({  
+      name: "Bose",
+      status: "completed",
+      products: boseResults,
+      successful: boseSuccessful,  
+      failed: boseFailed,
+      total: boseResults.length
+    });
+
+    results.summary.totalProducts += boseResults.length;
+    results.summary.successful += boseSuccessful;
+    results.summary.failed += boseFailed;
+
+    console.log(`✅ Bose completado: ${boseSuccessful}/${boseResults.length} exitosos\n`); 
+
+  } catch (error) {
+    console.error('❌ Error actualizando productos Bose:', error.message);
+    
+    results.providers.push({  
+      name: "Bose",
+      status: "error",
+      error: error.message,
+      successful: 0,  
+      failed: 0,      
+      total: 0        
+    });
+  }
+
+// Actualizacion de productos Samsung
+
+  try {
+    console.log('📱 Actualizando productos Samsung...');
+    const samsungResults = await updateSamsungProducts();
+
+    const samsungSuccessful = samsungResults.filter(r => r.status === "ok").length;  
+    const samsungFailed = samsungResults.filter(r => r.status === "error").length;   
+
+    results.providers.push({  // 
+      name: "Samsung",
+      status: "completed",
+      products: samsungResults,
+      successful: samsungSuccessful,
+      failed: samsungFailed,
+      total: samsungResults.length
+    });
+
+    results.summary.totalProducts += samsungResults.length;
+    results.summary.successful += samsungSuccessful;
+    results.summary.failed += samsungFailed;
+  
+    console.log(`✅ Samsung completado: ${samsungSuccessful}/${samsungResults.length} exitosos\n`);  // 
+
+  } catch (error) {
+    console.error('❌ Error actualizando Samsung:', error.message);
+
+    results.providers.push({  
+      name: "Samsung",
+      status: "error",
+      error: error.message,
+      successful: 0,  
+      failed: 0,      
+      total: 0         
+    });
+  }
+
+  
+  
+  results.summary.totalProviders = results.providers.length;  
+  results.summary.duration = Date.now() - startTime;          
+
+  console.log('='.repeat(80));
+  console.log(' RESUMEN FINAL');
+  console.log('='.repeat(80));
+  console.log(`Proveedores procesados: ${results.summary.totalProviders}`);  // ← FIX: era "totalProvider"
+  console.log(`Productos totales: ${results.summary.totalProducts}`);
+  console.log(`Exitosos: ${results.summary.successful}`);
+  console.log(`Fallidos: ${results.summary.failed}`);
+  //ya que se quire calcular el impacto del proyecto con respecto al tiempo es importante determinar cuanto tiempo se esta tomando la acción 
+  console.log(`⏱️  Tiempo total: ${(results.summary.duration / 1000).toFixed(2)}s`);
+  console.log('='.repeat(80) + '\n');
+
+  return results;
+};
