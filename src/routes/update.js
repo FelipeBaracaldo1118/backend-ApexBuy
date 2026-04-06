@@ -9,6 +9,8 @@ import {
   updateSingleKtronixProduct,
   updateMansionProducts,
   updateSingleMansionProduct,
+  updateFalabellaProducts,
+  updateSingleFalabellaProduct
 } from "../services/updateService.js";
 
 // Las rutas son los endpoints que se crean en la API.
@@ -219,4 +221,52 @@ router.get("/mansion-single", async (req, res)=> {
       })
     }
 })
+
+//endpoint falabella
+
+router.get("/falabella", async (req, res) => {
+  try {
+    const result = await updateFalabellaProducts();
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Error en /falabella:", error);
+    res.status(500).json({ 
+      error: "Error actualizando Falabella",
+      details: error.message 
+    });
+  }
+});
+ 
+/*
+ GET /api/update/falabella-single?url=...
+  Actualizar un solo producto de Falabella
+ */
+router.get("/falabella-single", async (req, res) => {
+  try {
+    const { url } = req.query;
+ 
+    if (!url) {
+      return res.status(400).json({
+        error: "Se requiere el parámetro 'url'",
+        ejemplo: "/api/update/falabella-single?url=https://www.falabella.com.co/..."
+      });
+    }
+ 
+    if (!url.includes('falabella.com')) {
+      return res.status(400).json({
+        error: "La URL debe ser del sitio falabella.com",
+        url_recibida: url
+      });
+    }
+ 
+    const result = await updateSingleFalabellaProduct(url);
+    res.json(result);
+ 
+  } catch (error) {
+    console.error("❌ Error en /falabella-single:", error);
+    res.status(500).json({ 
+      error: error.message 
+    });
+  }
+});
 export default router;

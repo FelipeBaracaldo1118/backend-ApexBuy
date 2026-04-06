@@ -8,6 +8,7 @@ import { scrapeMansionProduct } from "./mansionScraper.js";
 import { getOrCreateProduct } from "./productService.js";
 import { savePrice } from "./priceService.js";
 import { getSourceByName } from "./sourceService.js";
+import { scrapeFalabellaProduct } from "./falabellaScraper.js";
 
 
 // BOSE - PROVEEDOR (API)
@@ -67,9 +68,9 @@ export const updateBoseProducts = async () => {
   return results;
 };
 
-// ============================================================================
+
 // SAMSUNG - PROVEEDOR (Scraping con Puppeteer)
-// ============================================================================
+
 
 /**
  * Actualizar TODOS los productos Samsung configurados
@@ -127,12 +128,12 @@ export const updateSingleSamsungProduct = async (url) => {
 
 
 /**
- * Actualizar TODOS los productos Ktronix configurados
- * 
- * Ktronix es un COMPETIDOR:
- * - NO tiene descuento (wholesale_discount = 0)
- * - Vende productos de múltiples marcas (Samsung, Bose, etc.)
- * - Usamos sus precios para comparar contra nuestros proveedores
+ Actualizar TODOS los productos Ktronix configurados
+ 
+ Ktronix es un COMPETIDOR:
+ - NO tiene descuento (wholesale_discount = 0)
+ - Vende productos de múltiples marcas (Samsung, Bose, etc.)
+ - Usamos sus precios para comparar contra nuestros proveedores
  */
 export const updateKtronixProducts = async () => {
   console.log(' Iniciando actualización de productos Ktronix...');
@@ -265,8 +266,8 @@ export const updateSingleKtronixProduct = async (url) => {
 
 /**
  * Actualizar TODOS los productos de Mansion configurados
- * 
- * Mansion es un COMPETIDOR:
+ 
+ Mansion es un COMPETIDOR:
  - NO tiene descuento (wholesale_discount = 0)
  - Vende productos de múltiples marcas
  - Usamos sus precios para comparar contra proveedores
@@ -542,9 +543,9 @@ export const updateAllProviders = async () => {
     });
   }
 
-  // ==========================================================================
+  
   // MANSION - COMPETIDOR (Cheerio)
-  // ==========================================================================
+ 
 
   try {
     console.log(' Actualizando productos Mansion...');
@@ -581,6 +582,41 @@ export const updateAllProviders = async () => {
     });
   }
 
+  try {
+    console.log('🛍️ Actualizando productos Falabella...');
+    const falabellaResults = await updateFalabellaProducts();
+ 
+    const falabellaSuccessful = falabellaResults.filter(r => r.status === "ok").length;
+    const falabellaFailed = falabellaResults.filter(r => r.status === "error").length;
+ 
+    results.providers.push({
+      name: "Falabella",
+      status: "completed",
+      products: falabellaResults,
+      successful: falabellaSuccessful,
+      failed: falabellaFailed,
+      total: falabellaResults.length
+    });
+ 
+    results.summary.totalProducts += falabellaResults.length;
+    results.summary.successful += falabellaSuccessful;
+    results.summary.failed += falabellaFailed;
+ 
+    console.log(`✅ Falabella completado: ${falabellaSuccessful}/${falabellaResults.length} exitosos\n`);
+ 
+  } catch (error) {
+    console.error('❌ Error actualizando Falabella:', error.message);
+ 
+    results.providers.push({
+      name: "Falabella",
+      status: "error",
+      error: error.message,
+      successful: 0,
+      failed: 0,
+      total: 0
+    });
+  }
+
   
   // RESUMEN FINAL
   
@@ -600,3 +636,130 @@ export const updateAllProviders = async () => {
 
   return results;
 };
+
+
+//Actualizacion de falabella
+
+export const updateFalabellaProducts = async () => {
+  console.log('🛍️ Iniciando actualización de productos Falabella...');
+ 
+  const urls = [
+    // Productos Bose
+    "https://www.falabella.com.co/falabella-co/product/70719486/Parlante-portatil-Bose-S1-PRO+-Bluetooth/70719486",
+    "https://www.falabella.com.co/falabella-co/product/73097569/Altavoz-Bluetooth-portatil-Bose-SoundLink-Flex-(2.a-gen.)/73097571",
+    "https://www.falabella.com.co/falabella-co/product/73357092/Audifonos-Bose-QuietComfort-Noise-cancelling/73357093",
+    
+    // Productos Samsung
+    "https://www.falabella.com.co/falabella-co/product/73298024/Televisor-Samsung-50-pulgadas-4K-Ultra-HD-UHD-UN50U8000FKXZL/73298024",
+    "https://www.falabella.com.co/falabella-co/product/73000484/Lavadora-Secadora-Samsung-Electrica-26-kg-Bespoke-AI-Laundry-Combo-WD26DB8995BZCO-Heat-Pump-Secado-Optimo-en-50-Menos-Tiempo/73000484",
+    "https://www.falabella.com.co/falabella-co/product/73298011/televisor-samsung-48-pulgadas-4k-oled-qn48s90faexzl/73298011",
+    "https://www.falabella.com.co/falabella-co/product/73150331/Nevecon-Samsung-Side-by-Side-578-Litros-RS57DG4100B4CO-con-Inteligencia-Artificial-/73150331",
+  ];
+ 
+  console.log(`📋 Total de productos a actualizar: ${urls.length}`);
+ 
+  const source = await getSourceByName("Falabella");
+  
+  if (!source) {
+    throw new Error(
+      'La fuente "Falabella" no existe en la tabla sources. ' +
+      'Ejecuta: INSERT INTO sources (name, type, role, wholesale_discount) ' +
+      'VALUES (\'Falabella\', \'scraping\', \'competitor\', 0.00);'
+    );
+  }
+ 
+  console.log(`✅ Fuente encontrada: ${source.name} (ID: ${source.id})`);
+ 
+  const results = [];
+ 
+  for (const url of urls) {
+    try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`🔄 Procesando: ${url}`);
+      console.log('='.repeat(70));
+ 
+      const data = await scrapeFalabellaProduct(url);
+ 
+      console.log(`✅ Datos extraídos:`, {
+        titulo: data.title,
+        marca: data.vendor,
+        precio: `$${data.price.toLocaleString('es-CO')}`,
+        disponible: data.available ? 'Sí' : 'No'
+      });
+ 
+      const product = await getOrCreateProduct(data);
+      console.log(`💾 Producto en DB: ${product.name} (ID: ${product.id})`);
+ 
+      await savePrice(product.id, source.id, data.price, data.available);
+      console.log(`💰 Precio guardado: $${data.price.toLocaleString('es-CO')}`);
+ 
+      results.push({
+        url:    url,
+        status: "ok",
+        data:   data
+      });
+ 
+      console.log(`✅ Producto procesado exitosamente`);
+ 
+    } catch (error) {
+      console.error(`❌ Error procesando ${url}:`, error.message);
+ 
+      results.push({
+        url:    url,
+        status: "error",
+        error:  error.message
+      });
+    }
+  }
+ 
+  const exitosos = results.filter(r => r.status === "ok").length;
+  const fallidos  = results.filter(r => r.status === "error").length;
+ 
+  console.log(`\n${'='.repeat(70)}`);
+  console.log('📊 RESUMEN FALABELLA');
+  console.log('='.repeat(70));
+  console.log(`✅ Productos exitosos: ${exitosos}`);
+  console.log(`❌ Productos fallidos:  ${fallidos}`);
+  console.log(`📦 Total procesados:    ${results.length}`);
+  console.log('='.repeat(70) + '\n');
+ 
+  return results;
+};
+ 
+/**
+ * Actualizar UN producto de Falabella por URL
+ */
+export const updateSingleFalabellaProduct = async (url) => {
+  console.log(`🔄 Actualizando producto individual de Falabella...`);
+  console.log(`URL: ${url}`);
+ 
+  try {
+    const source = await getSourceByName("Falabella");
+    
+    if (!source) {
+      throw new Error('La fuente "Falabella" no existe');
+    }
+ 
+    const data = await scrapeFalabellaProduct(url);
+    const product = await getOrCreateProduct(data);
+    await savePrice(product.id, source.id, data.price, data.available);
+ 
+    console.log(`✅ Actualización completada: ${data.title}`);
+ 
+    return {
+      url:    url,
+      status: "ok",
+      data:   data
+    };
+ 
+  } catch (error) {
+    console.error(`❌ Error:`, error.message);
+ 
+    return {
+      url:    url,
+      status: "error",
+      error:  error.message
+    };
+  }
+};
+ 
