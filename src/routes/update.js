@@ -6,7 +6,9 @@ import {
   updateSingleSamsungProduct,
   updateAllProviders, 
   updateKtronixProducts,
-  updateSingleKtronixProduct
+  updateSingleKtronixProduct,
+  updateMansionProducts,
+  updateSingleMansionProduct,
 } from "../services/updateService.js";
 
 // Las rutas son los endpoints que se crean en la API.
@@ -172,4 +174,49 @@ router.get("/all-providers", async (req, res) => {
   }
 });
 
+
+//Actualizacion productos mansion mediante GET
+
+router.get("/mansion", async (req, res) => {
+  try{
+    const result = await updateMansionProducts();
+    res.json(result)
+  } catch (error){
+    console.error("Error en /mansion:", error)
+    res.status(500).json({
+      error:"Error actualizando Mansion",
+      details: error.message
+    })
+  }
+})
+
+//End point actualizacion de un solo producto para mansion 
+
+router.get("/mansion-single", async (req, res)=> {
+  try{
+    const {url} = rew.query;
+    if(!url){
+      return res.status(400).json({
+        error: "se requiere el url como parametro",
+        ejemplo:"/api/update/mansion-single?url=http...."
+      })
+    }
+
+    if(url.includes('grupomansion.com')){
+      return res.status(400).json({
+          error: "La url debe ser de grupo mansion",
+          url_recibida: url
+      })
+    }
+
+    const result = await updateSingleMansionProduct(url)
+    res.json(result)
+
+    }catch(error) {
+      console.error("Error en /mansion-single", error)
+      res.status(500).json({
+        error: error.message
+      })
+    }
+})
 export default router;

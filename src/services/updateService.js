@@ -1,9 +1,14 @@
+// Servicio centralizado para actualizar precios de todos los proveedores
+// y competidores: Bose, Samsung, Ktronix, Mansion y Falabella
+
 import { getBoseProduct } from "./boseService.js";
 import { scrapeSamsungProduct } from "./samsungScraper.js";
 import { scrapeKtronixProduct } from "./ktronixScraper.js";
+import { scrapeMansionProduct } from "./mansionScraper.js";
 import { getOrCreateProduct } from "./productService.js";
 import { savePrice } from "./priceService.js";
 import { getSourceByName } from "./sourceService.js";
+
 
 // BOSE - PROVEEDOR (API)
 
@@ -20,7 +25,7 @@ export const updateSingleBoseProduct = async (handle) => {
 
   const url = `https://bose.co/products/${handle}.js`;
 
-  console.log(` Actualizando producto Bose: ${handle}`);
+  console.log(`🔎 Actualizando producto Bose: ${handle}`);
 
   const data = await getBoseProduct(url);
   const product = await getOrCreateProduct(data);
@@ -50,7 +55,7 @@ export const updateBoseProducts = async () => {
       const result = await updateSingleBoseProduct(handle);
       results.push(result);
     } catch (error) {
-      console.error(` Error en ${handle}:`, error.message);
+      console.error(`Error en ${handle}:`, error.message);
       results.push({
         handle,
         status: "error",
@@ -62,9 +67,9 @@ export const updateBoseProducts = async () => {
   return results;
 };
 
-
+// ============================================================================
 // SAMSUNG - PROVEEDOR (Scraping con Puppeteer)
-
+// ============================================================================
 
 /**
  * Actualizar TODOS los productos Samsung configurados
@@ -123,11 +128,11 @@ export const updateSingleSamsungProduct = async (url) => {
 
 /**
  * Actualizar TODOS los productos Ktronix configurados
- 
-  Ktronix es un COMPETIDOR:
-  - NO tiene descuento (wholesale_discount = 0)
-  - Vende productos de múltiples marcas (Samsung, Bose, etc.)
-  - Usamos sus precios para comparar contra nuestros proveedores
+ * 
+ * Ktronix es un COMPETIDOR:
+ * - NO tiene descuento (wholesale_discount = 0)
+ * - Vende productos de múltiples marcas (Samsung, Bose, etc.)
+ * - Usamos sus precios para comparar contra nuestros proveedores
  */
 export const updateKtronixProducts = async () => {
   console.log(' Iniciando actualización de productos Ktronix...');
@@ -159,7 +164,7 @@ export const updateKtronixProducts = async () => {
     );
   }
 
-  console.log(` Fuente encontrada: ${source.name} (ID: ${source.id})`);
+  console.log(`Fuente encontrada: ${source.name} (ID: ${source.id})`);
 
   const results = [];
 
@@ -207,11 +212,11 @@ export const updateKtronixProducts = async () => {
   const fallidos  = results.filter(r => r.status === "error").length;
 
   console.log(`\n${'='.repeat(70)}`);
-  console.log(' RESUMEN KTRONIX');
+  console.log('RESUMEN KTRONIX');
   console.log('='.repeat(70));
-  console.log(`Productos exitosos: ${exitosos}`);
-  console.log(`Productos fallidos:  ${fallidos}`);
-  console.log(`Total procesados:    ${results.length}`);
+  console.log(` Productos exitosos: ${exitosos}`);
+  console.log(` Productos fallidos:  ${fallidos}`);
+  console.log(` Total procesados:    ${results.length}`);
   console.log('='.repeat(70) + '\n');
 
   return results;
@@ -221,7 +226,7 @@ export const updateKtronixProducts = async () => {
  * Actualizar UN producto Ktronix por URL
  */
 export const updateSingleKtronixProduct = async (url) => {
-  console.log(`Actualizando producto individual de Ktronix...`);
+  console.log(` Actualizando producto individual de Ktronix...`);
   console.log(`URL: ${url}`);
 
   try {
@@ -255,6 +260,138 @@ export const updateSingleKtronixProduct = async (url) => {
 };
 
 
+// MANSION - COMPETIDOR (Scraping con Cheerio)
+
+
+/**
+ * Actualizar TODOS los productos de Mansion configurados
+ * 
+ * Mansion es un COMPETIDOR:
+ - NO tiene descuento (wholesale_discount = 0)
+ - Vende productos de múltiples marcas
+ - Usamos sus precios para comparar contra proveedores
+ */
+export const updateMansionProducts = async () => {
+  console.log('Iniciando actualización de productos Mansion...');
+
+  const urls = [
+    // Mansion solo maneja producto samsung, asi que solo se pone los links de samsung aqui
+    "https://www.grupomansion.com/refrigeracion/642-nevecon-samsung-side-by-side-778lt-black-rs27t5200b1co-8806092233560.html",
+    "https://www.grupomansion.com/audio-y-video/5713-televisor-samsung-50-pulgadas-crystal-smart-4k-un50u8000fkxz-8806097027560.html",
+    "https://www.grupomansion.com/audio-y-video/5825-televisor-samsung-48-pulgadas-oled-4k-smart-tv-qn48s90faexzl-8806097085003.html",
+    "https://www.grupomansion.com/lavadoras-y-secadoras/3110-lavadora-secadora-samsung-bespoke-26-kg-ai-laundry-combo-wd26db8995bzco-8806095718972.html"
+
+
+  ];
+
+  console.log(` Total de productos a actualizar: ${urls.length}`);
+
+  const source = await getSourceByName("Mansion Electrodomesticos");
+  
+  if (!source) {
+    throw new Error(
+      'La fuente "Mansion" no existe en la tabla sources. ' +
+      'Ejecuta: INSERT INTO sources (name, type, role, wholesale_discount) ' +
+      'VALUES (\'Mansion\', \'scraping\', \'competitor\', 0.00);'
+    );
+  }
+
+  console.log(`Fuente encontrada: ${source.name} (ID: ${source.id})`);
+
+  const results = [];
+
+  for (const url of urls) {
+    try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(` Procesando: ${url}`);
+      console.log('='.repeat(70));
+
+      const data = await scrapeMansionProduct(url);
+
+      console.log(` Datos extraídos:`, {
+        titulo: data.title,
+        marca: data.vendor,
+        precio: `$${data.price.toLocaleString('es-CO')}`,
+        disponible: data.available ? 'Sí' : 'No'
+      });
+
+      const product = await getOrCreateProduct(data);
+      console.log(` Producto en DB: ${product.name} (ID: ${product.id})`);
+
+      await savePrice(product.id, source.id, data.price, data.available);
+      console.log(`Precio guardado: $${data.price.toLocaleString('es-CO')}`);
+
+      results.push({
+        url:    url,
+        status: "ok",
+        data:   data
+      });
+
+      console.log(`Producto procesado exitosamente`);
+
+    } catch (error) {
+      console.error(` Error procesando ${url}:`, error.message);
+
+      results.push({
+        url:    url,
+        status: "error",
+        error:  error.message
+      });
+    }
+  }
+
+  const exitosos = results.filter(r => r.status === "ok").length;
+  const fallidos  = results.filter(r => r.status === "error").length;
+
+  console.log(`\n${'='.repeat(70)}`);
+  console.log(' RESUMEN MANSION');
+  console.log('='.repeat(70));
+  console.log(` Productos exitosos: ${exitosos}`);
+  console.log(` Productos fallidos:  ${fallidos}`);
+  console.log(` Total procesados:    ${results.length}`);
+  console.log('='.repeat(70) + '\n');
+
+  return results;
+};
+
+/**
+ * Actualizar UN producto de Mansion por URL
+ */
+export const updateSingleMansionProduct = async (url) => {
+  console.log(` Actualizando producto individual de Mansion...`);
+  console.log(`URL: ${url}`);
+
+  try {
+    const source = await getSourceByName("Mansion");
+    
+    if (!source) {
+      throw new Error('La fuente "Mansion" no existe');
+    }
+
+    const data = await scrapeMansionProduct(url);
+    const product = await getOrCreateProduct(data);
+    await savePrice(product.id, source.id, data.price, data.available);
+
+    console.log(` Actualización completada: ${data.title}`);
+
+    return {
+      url:    url,
+      status: "ok",
+      data:   data
+    };
+
+  } catch (error) {
+    console.error(` Error:`, error.message);
+
+    return {
+      url:    url,
+      status: "error",
+      error:  error.message
+    };
+  }
+};
+
+
 // UPDATE ALL PROVIDERS - ENDPOINT PRINCIPAL
 
 
@@ -263,15 +400,16 @@ export const updateSingleKtronixProduct = async (url) => {
  * 
  * Este es el endpoint principal que se usa en producción para actualizar
  * todos los precios con un solo click
- 
+ * 
  * Ejecuta en orden:
- * 1. Bose (API - rápido)
- * 2. Samsung (Puppeteer - lento)
- * 3. Ktronix (Cheerio - medio)
+ * 1. Bose (API - rápido ~2s)
+ * 2. Samsung (Puppeteer - lento ~20s)
+ * 3. Ktronix (Cheerio - medio ~8s)
+ * 4. Mansion (Cheerio - medio ~5s)
  */
 export const updateAllProviders = async () => {
   console.log('\n' + '='.repeat(80));
-  console.log(' ACTUALIZANDO TODOS LOS PROVEEDORES Y COMPETIDORES');
+  console.log('ACTUALIZANDO TODOS LOS PROVEEDORES Y COMPETIDORES');
   console.log('='.repeat(80) + '\n');
 
   const startTime = Date.now();
@@ -287,7 +425,7 @@ export const updateAllProviders = async () => {
     providers: []
   };
 
-
+ 
   // BOSE - PROVEEDOR (API)
   
 
@@ -311,7 +449,7 @@ export const updateAllProviders = async () => {
     results.summary.successful += boseSuccessful;
     results.summary.failed += boseFailed;
 
-    console.log(`Bose completado: ${boseSuccessful}/${boseResults.length} exitosos\n`);
+    console.log(` Bose completado: ${boseSuccessful}/${boseResults.length} exitosos\n`);
 
   } catch (error) {
     console.error('Error actualizando productos Bose:', error.message);
@@ -326,8 +464,9 @@ export const updateAllProviders = async () => {
     });
   }
 
+
   // SAMSUNG - PROVEEDOR (Puppeteer)
-  
+ 
 
   try {
     console.log(' Actualizando productos Samsung...');
@@ -349,7 +488,7 @@ export const updateAllProviders = async () => {
     results.summary.successful += samsungSuccessful;
     results.summary.failed += samsungFailed;
 
-    console.log(`Samsung completado: ${samsungSuccessful}/${samsungResults.length} exitosos\n`);
+    console.log(` Samsung completado: ${samsungSuccessful}/${samsungResults.length} exitosos\n`);
 
   } catch (error) {
     console.error(' Error actualizando Samsung:', error.message);
@@ -403,6 +542,45 @@ export const updateAllProviders = async () => {
     });
   }
 
+  // ==========================================================================
+  // MANSION - COMPETIDOR (Cheerio)
+  // ==========================================================================
+
+  try {
+    console.log(' Actualizando productos Mansion...');
+    const mansionResults = await updateMansionProducts();
+
+    const mansionSuccessful = mansionResults.filter(r => r.status === "ok").length;
+    const mansionFailed = mansionResults.filter(r => r.status === "error").length;
+
+    results.providers.push({
+      name: "Mansion",
+      status: "completed",
+      products: mansionResults,
+      successful: mansionSuccessful,
+      failed: mansionFailed,
+      total: mansionResults.length
+    });
+
+    results.summary.totalProducts += mansionResults.length;
+    results.summary.successful += mansionSuccessful;
+    results.summary.failed += mansionFailed;
+
+    console.log(` Mansion completado: ${mansionSuccessful}/${mansionResults.length} exitosos\n`);
+
+  } catch (error) {
+    console.error(' Error actualizando Mansion:', error.message);
+
+    results.providers.push({
+      name: "Mansion",
+      status: "error",
+      error: error.message,
+      successful: 0,
+      failed: 0,
+      total: 0
+    });
+  }
+
   
   // RESUMEN FINAL
   
@@ -416,10 +594,8 @@ export const updateAllProviders = async () => {
   console.log(`Proveedores/Competidores procesados: ${results.summary.totalProviders}`);
   console.log(`Productos totales: ${results.summary.totalProducts}`);
   console.log(`Exitosos: ${results.summary.successful}`);
-  console.log(` Fallidos: ${results.summary.failed}`);
-
-  // Se registra el tiempo final del proceso para poder compararlo con el tiempo que se demoraba una persona haciendo todo el proceso
-  console.log(` Tiempo total: ${(results.summary.duration / 1000).toFixed(2)}s`);
+  console.log(`Fallidos: ${results.summary.failed}`);
+  console.log(`Tiempo total: ${(results.summary.duration / 1000).toFixed(2)}s`);
   console.log('='.repeat(80) + '\n');
 
   return results;

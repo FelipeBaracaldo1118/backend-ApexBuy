@@ -1,11 +1,3 @@
-
-// SCRAPER DE PRODUCTOS KTRONIX - VERSIÓN FINAL
-
-// Scraper optimizado para Ktronix usando Cheerio ya que el contenido no es dinamico. 
-// - available: siempre true (asumimos disponibilidad)
-// - image: null (no extraemos imágenes para competidores), ya que no es necesario, solo para proveedores
-// Cheerio es mas rapido y mas sencillo que Puppeteer
-
 import * as cheerio from 'cheerio';
 import { normalizeProduct } from "./normalizeProduct.js";
 
@@ -20,7 +12,7 @@ export async function scrapeKtronixProduct(url) {
     console.log(` Iniciando scraping de Ktronix: ${url}`);
 
     
-    // PASO 1: DESCARGAR EL HTML
+    // DESCARGAR EL HTML
     
     
     const response = await fetch(url, {
@@ -39,29 +31,29 @@ export async function scrapeKtronixProduct(url) {
     console.log(` HTML descargado (${html.length} caracteres)`);
 
 
-    // PASO 2: CARGAR EN CHEERIO
+    // CARGAR EN CHEERIO
     
     
     const $ = cheerio.load(html);
 
     
-    // PASO 3: EXTRAER TÍTULO
+    // EXTRAER TÍTULO
     
     
     let titulo = '';
     
-    // Intento 1: Tag <title>
+    //  Tag <title>
     titulo = $('title').text().trim();
     if (titulo) {
       titulo = titulo.split('|')[0].trim();
     }
     
-    // Intento 2: H1
+    //  H1
     if (!titulo) {
       titulo = $('h1').first().text().trim();
     }
     
-    // Intento 3: Meta tag
+    //  Meta tag
     if (!titulo) {
       titulo = $('meta[property="og:title"]').attr('content') || '';
     }
@@ -73,7 +65,7 @@ export async function scrapeKtronixProduct(url) {
     }
 
     
-    // PASO 4: EXTRAER PRECIO
+    //  EXTRAER PRECIO
     
     
     let precioTexto = '';
@@ -104,7 +96,7 @@ export async function scrapeKtronixProduct(url) {
     }
 
     
-    // PASO 5: EXTRAER CÓDIGO DEL PRODUCTO
+    // EXTRAER CÓDIGO DEL PRODUCTO
     
     // Ktronix usa: /p/8806097027560, esto esta por GET en el navegador, se puede verificar con el link de navegador
     
@@ -124,14 +116,14 @@ export async function scrapeKtronixProduct(url) {
     console.log(` Código producto: ${codigoProducto}`);
 
   
-    // PASO 6: DETECTAR MARCA
+    //  DETECTAR MARCA
     //Para validar que la marca coincida, en caso tal revisar que no este generando mas errores
     
     const vendor = extractBrandFromTitle(titulo);
     console.log(` Marca detectada: ${vendor}`);
 
     
-    // PASO 7: ENSAMBLAR OBJETO FINAL
+    //  ENSAMBLAR OBJETO FINAL
     
     
     const datosExtraidos = {
@@ -217,22 +209,3 @@ function extractBrandFromTitle(titulo) {
   // Si no se encuentra, retornar "Unknown"
   return 'Unknown';
 }
-// ============================================================================
-// NOTAS IMPORTANTES
-// ============================================================================
-//
-// 1. VENTAJAS VS SAMSUNG:
-//    - Ktronix usa Cheerio (más rápido, ~1s vs ~4s de Puppeteer)
-//    - Menos uso de memoria
-//    - Más simple de mantener
-//
-// 2. SELECTORES ESPECÍFICOS DE KTRONIX:
-//    - Precio: #js-original_price o .price-ktronix
-//    - Código: extraído de URL /p/{codigo}
-//    - Marca: extraída del título
-//
-// 3. DETECCIÓN DE MARCA:
-//    Ktronix vende múltiples marcas, por eso extraemos la marca del título
-//    en lugar de hardcodear "Ktronix" como vendor
-//
-// ============================================================================
