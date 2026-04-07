@@ -2,7 +2,7 @@
 
 Monitoreo competitivo de precios para compras y decisiones comerciales.
 
-**Stack principal:** Node.js (ESM), Express 5, PostgreSQL, Puppeteer (Samsung), Cheerio (Ktronix).
+**Stack principal:** Node.js (ESM), Express 5, PostgreSQL, Puppeteer (Samsung/Falabella), Cheerio (Ktronix/Mansion).
 
 ---
 
@@ -29,7 +29,7 @@ Monitoreo competitivo de precios para compras y decisiones comerciales.
 
 ## ¿Qué es ApexBuy?
 
-**ApexBuy** es el backend de un sistema que **recolecta precios** de **tiendas proveedor** (Bose, Samsung) y de **competencia** (Ktronix), los **normaliza**, los **guarda en PostgreSQL** y expone una **API REST** para **analizar márgenes y oportunidades** frente al mercado. En una frase: *automatiza la vigilancia de precios y entrega señales claras (ALTA / MEDIA / BAJA) para priorizar dónde comprar o vender mejor.*
+**ApexBuy** es el backend de un sistema que **recolecta precios** de **tiendas proveedor** (Bose, Samsung) y de **competencia** (Ktronix, Mansion, Falabella), los **normaliza**, los **guarda en PostgreSQL** y expone una **API REST** para **analizar márgenes y oportunidades** frente al mercado. En una frase: *automatiza la vigilancia de precios y entrega señales claras (ALTA / MEDIA / BAJA) para priorizar dónde comprar o vender mejor.*
 
 ---
 
@@ -39,10 +39,10 @@ Monitoreo competitivo de precios para compras y decisiones comerciales.
 
 | | |
 |---|:-:|
-| **Multi-fuente** | Bose (API JSON), Samsung (Puppeteer), Ktronix (Cheerio). |
-| **14 SKUs operativos** | 7 líneas de catálogo × 2 frentes (proveedor + competidor). |
+| **Multi-fuente** | Bose (API JSON), Samsung (Puppeteer), Ktronix (Cheerio), Mansion (Cheerio), Falabella (Puppeteer). |
+| **Cobertura operativa actual** | Múltiples fuentes por referencia (proveedores y competidores) en actualización masiva y por producto individual. |
 | **Pipeline único** | `normalizeProduct` → `getOrCreateProduct` → `savePrice`. |
-| **Actualización masiva** | Un endpoint ejecuta Bose → Samsung → Ktronix en orden. |
+| **Actualización masiva** | Un endpoint ejecuta Bose → Samsung → Ktronix → Mansion → Falabella en orden. |
 | **Análisis por producto y por grupo** | Márgenes, competencia (min/max/promedio), clasificación de oportunidad. |
 | **Administración de grupos** | Crear grupos, listar, vincular / desvincular productos. |
 
@@ -68,7 +68,8 @@ Monitoreo competitivo de precios para compras y decisiones comerciales.
 │  Servicios de extracción    │   │  Servicios de negocio           │
 │  boseService (fetch JSON)  │   │  productService, priceService   │
 │  samsungScraper (Puppeteer)│   │  analysisService, Productgroup…  │
-│  ktronixScraper (Cheerio)  │   │  updateService (orquestación)    │
+│  ktronix/mansion (Cheerio) │   │  updateService (orquestación)    │
+│  falabellaScraper (Puppeteer)                                   │
 └────────────┬───────────────┘   └────────────────┬───────────────┘
              │                                     │
              └──────────────────┬──────────────────┘
@@ -88,11 +89,11 @@ Monitoreo competitivo de precios para compras y decisiones comerciales.
 
 | Área | Detalle de implementación |
 |------|---------------------------|
-| **Fuentes activas** | Bose (proveedor, API), Samsung (proveedor, Puppeteer), Ktronix (competidor, Cheerio). |
-| **Catálogo** | **7** referencias de negocio comparadas en dos bandas. |
-| **Persistencia** | **14** registros de producto alineados (7 proveedor + 7 competidor), más histórico en `prices`. |
-| **Rutas de actualización** | Masivo e individual por marca + `all-providers`. |
-| **Análisis** | Por `productId`, por `groupId`, y ruta detallada `supplier-vs-competitor`. |
+| **Fuentes activas** | Bose (proveedor, API), Samsung (proveedor, Puppeteer), Ktronix (competidor, Cheerio), Mansion (competidor, Cheerio), Falabella (competidor, Puppeteer). |
+| **Cobertura configurada en update masivo** | Bose: 3 URLs/handles, Samsung: 4, Ktronix: 7, Mansion: 4, Falabella: 7 (total 25 items por corrida completa). |
+| **Persistencia** | Productos normalizados + histórico de precios en `prices` por cada ejecución. |
+| **Rutas de actualización** | Masivo e individual por fuente + `all-providers`. |
+| **Análisis** | Por `productId`, historial y cambios, por `groupId`, comparativa supplier-vs-competitor, oportunidades (completas y filtradas), estadísticas globales. |
 | **Admin** | CRUD de grupos y vínculos producto ↔ grupo. |
 
 ---
@@ -107,7 +108,7 @@ El backend no fija “números de ejemplo” en código: las **métricas reales*
 |--------|--------------------------|
 | **Precio proveedor mínimo** | Costo de referencia de compra en canales propios. |
 | **Costo estimado** | \(0{,}75 \times\) precio proveedor (proxy hasta tener costos reales). |
-| **Competencia (min / max / promedio)** | Rango del mercado en Ktronix (y otras fuentes competidoras cuando existan). |
+| **Competencia (min / max / promedio)** | Rango del mercado considerando todas las fuentes con `role = competitor` (Ktronix, Mansion, Falabella, etc.). |
 | **Ganancia y margen %** | Señal de cuánto “aire” hay frente al retail competidor. |
 | **Oportunidad ALTA / MEDIA / BAJA** | Priorización rápida según umbrales del margen (ver [Explicación del análisis](#analisis)). |
 
@@ -125,8 +126,8 @@ El backend no fija “números de ejemplo” en código: las **métricas reales*
 | **Express 5** | API HTTP, CORS, JSON. |
 | **PostgreSQL + `pg`** | Persistencia y consultas de análisis. |
 | **dotenv** | Variables de entorno. |
-| **Puppeteer** | Samsung (contenido dinámico). |
-| **Cheerio** | Ktronix (HTML estático). |
+| **Puppeteer** | Samsung y Falabella (contenido dinámico). |
+| **Cheerio** | Ktronix y Mansion (HTML estático). |
 | **nodemon** | Desarrollo (`npm run dev`). |
 
 Versiones concretas: ver [`package.json`](package.json).
@@ -178,7 +179,7 @@ DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/apexbuy
 PORT=3000
 ```
 
-**Fuentes en base:** deben existir filas en `sources` con nombres que el código resuelve por nombre, por ejemplo `Bose`, `Samsung`, `Ktronix`, con `role` = `provider` o `competitor` según corresponda (el análisis filtra por `source_role`).
+**Fuentes en base:** deben existir filas en `sources` con nombres que el código resuelve por nombre, por ejemplo `Bose`, `Samsung`, `Ktronix`, `Mansion Electrodomesticos` y `Falabella`, con `role` = `provider` o `competitor` según corresponda (el análisis filtra por `source_role`).
 
 ---
 
@@ -195,19 +196,27 @@ curl -s http://localhost:3000/api/health
 # Actualizar todos los proveedores + competidor
 curl -s http://localhost:3000/api/update/all-providers
 
-# Solo Bose / Samsung / Ktronix (masivo)
+# Actualización masiva por fuente
 curl -s http://localhost:3000/api/update/bose
 curl -s http://localhost:3000/api/update/samsung
 curl -s http://localhost:3000/api/update/ktronix
+curl -s http://localhost:3000/api/update/mansion
+curl -s http://localhost:3000/api/update/falabella
 
 # Un producto por URL (codifica la URL en el cliente si hace falta)
 curl -s "http://localhost:3000/api/update/samsung-single?url=https%3A%2F%2Fwww.samsung.com%2Fco%2F..."
 curl -s "http://localhost:3000/api/update/ktronix-single?url=https%3A%2F%2Fwww.ktronix.com%2F..."
+curl -s "http://localhost:3000/api/update/falabella-single?url=https%3A%2F%2Fwww.falabella.com.co%2F..."
 
 # Análisis
 curl -s http://localhost:3000/api/analysis/product/PRODUCT_ID
+curl -s http://localhost:3000/api/analysis/product/PRODUCT_ID/history?limit=30
+curl -s http://localhost:3000/api/analysis/product/PRODUCT_ID/changes?threshold=5
 curl -s http://localhost:3000/api/analysis/group/GROUP_ID
 curl -s http://localhost:3000/api/analysis/group/GROUP_ID/supplier-vs-competitor
+curl -s http://localhost:3000/api/analysis/opportunities
+curl -s "http://localhost:3000/api/analysis/opportunities/filtered?minMargin=20&minGanancia=500000"
+curl -s http://localhost:3000/api/analysis/stats
 
 # Admin: listar grupos
 curl -s http://localhost:3000/api/admin/groups
@@ -362,9 +371,9 @@ Si faltan precios de proveedor o de competidor, el estado devuelve `missing_supp
 |---------|----------------|
 | Archivos JS en `src/` | ~18 |
 | Líneas de código en servicios y rutas | ~2000+ |
-| Integraciones de precio | 3 (Bose, Samsung, Ktronix) |
-| SKUs monitoreados en flujo completo | 14 (7+7) |
-| Endpoints REST principales | 15+ (salud, update, analysis, admin) |
+| Integraciones de precio | 5 (Bose, Samsung, Ktronix, Mansion, Falabella) |
+| Items configurados en corrida completa | 25 (3 + 4 + 7 + 4 + 7) |
+| Endpoints REST principales | 20+ (salud, update, analysis, admin) |
 
 ---
 
