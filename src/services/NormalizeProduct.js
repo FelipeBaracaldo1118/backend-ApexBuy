@@ -19,35 +19,48 @@ const REQUIRED_FIELDS = ["external_id", "title", "price", "vendor"];
   @returns {NormalizedProduct}
   @throws {Error} si algún campo requerido está ausente o el precio es inválido
  */
-export function normalizeProduct(raw, sourceName = "unknown") {
-
-  //  Validar campos requeridos 
-  for (const field of REQUIRED_FIELDS) {
-    if (raw[field] === undefined || raw[field] === null || raw[field] === "") {
-      throw new Error(
-        `[normalizeProduct] Campo requerido faltante: "${field}" en fuente "${sourceName}"`
-      );
+  export function normalizeProduct(data, sourceName) {
+    // Validación básica
+    if (!data.title || !data.price) {
+      throw new Error(`Datos incompletos: ${JSON.stringify(data)}`);
     }
+  
+    // Normalizar available a boolean
+    let available = true;  // Default
+    
+    if (data.available !== undefined) {
+      // Si es boolean, usar directamente
+      if (typeof data.available === 'boolean') {
+        available = data.available;
+      }
+      // Si es string, convertir
+      else if (typeof data.available === 'string') {
+        available = data.available.toLowerCase() !== 'no' && 
+                    data.available.toLowerCase() !== 'false';
+      }
+    }
+  
+    return {
+      external_id: data.external_id,
+      title: data.title,
+      brand: data.brand || extractBrand(data.title),
+      price: parseInt(data.price),
+      available: available,  // ← Siempre boolean
+      image: data.image || null,
+      vendor: sourceName
+    };
   }
-
-  //Validar precio 
-  const price = parseFloat(raw.price);
-
-  if (isNaN(price) || price < 0) {
-    throw new Error(
-      `[normalizeProduct] Precio inválido: "${raw.price}" en fuente "${sourceName}"`
-    );
+  
+  function extractBrand(title) {
+    const brands = ['Samsung', 'LG', 'Bose', 'Sony', 'Apple', /* ... */];
+    const titleLower = title.toLowerCase();
+    
+    for (const brand of brands) {
+      if (titleLower.includes(brand.toLowerCase())) {
+        return brand;
+      }
+    }
+    
+    return 'Unknown';
   }
-
-  //  Retornar objeto normalizado 
-
-  return {
-    external_id: String(raw.external_id),
-    title:       String(raw.title).trim(),
-    price:       price,
-    available:   raw.available !== undefined ? Boolean(raw.available) : true,
-    image:       raw.image     || null,
-    vendor:      String(raw.vendor).trim(),
-  };
-}
 

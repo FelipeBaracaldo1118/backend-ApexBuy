@@ -164,7 +164,7 @@ export async function scrapeFalabellaProduct(url) {
       if (textoCompleto.includes('agotado') || 
           textoCompleto.includes('no disponible') ||
           textoCompleto.includes('sin stock')) {
-        data.disponible = false;
+        data.disponible = true;
       }
 
       return data;
@@ -214,23 +214,21 @@ export async function scrapeFalabellaProduct(url) {
     console.log(`📦 Disponible: ${datos.disponible ? 'Sí' : 'No'}`);
 
     // ========================================================================
-    // PASO 8: ENSAMBLAR OBJETO
+    // PASO 8: NORMALIZAR Y RETORNAR
     // ========================================================================
     
-    const datosExtraidos = {
+    console.log(`✅ Scraping completado exitosamente`);
+
+    return normalizeProduct({
       external_id: codigoProducto,
       title:       datos.titulo,
       price:       precio,
       available:   datos.disponible,
       image:       null,
       vendor:      "Falabella",
-    };
+    }, "Falabella");
 
-    console.log(`✅ Scraping completado exitosamente`);
-
-    return normalizeProduct(datosExtraidos, "Falabella");
-
-  } catch (error) {
+  } catch (error)  {
     console.error('❌ Error en scraper de Falabella:', error.message);
     throw new Error(`Error scraping Falabella (${url}): ${error.message}`);
   } finally {

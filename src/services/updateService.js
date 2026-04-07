@@ -690,7 +690,7 @@ export const updateFalabellaProducts = async () => {
       const product = await getOrCreateProduct(data);
       console.log(`💾 Producto en DB: ${product.name} (ID: ${product.id})`);
  
-      await savePrice(product.id, source.id, data.price, data.available);
+      await savePrice(product.id, source.id, data.price, data.available ?? true);
       console.log(`💰 Precio guardado: $${data.price.toLocaleString('es-CO')}`);
  
       results.push({
@@ -741,8 +741,10 @@ export const updateSingleFalabellaProduct = async (url) => {
     }
  
     const data = await scrapeFalabellaProduct(url);
+    console.log('🐛 DEBUG - data completo:', JSON.stringify(data, null, 2));
+    console.log('🐛 DEBUG - data.available:', data.available, typeof data.available);
     const product = await getOrCreateProduct(data);
-    await savePrice(product.id, source.id, data.price, data.available);
+    await savePrice(product.id, source.id, data.price, data.available ?? true);
  
     console.log(`✅ Actualización completada: ${data.title}`);
  
