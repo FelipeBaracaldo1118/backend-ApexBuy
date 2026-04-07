@@ -1,299 +1,351 @@
-import * as cheerio from 'cheerio';
+
+// SCRAPER DE PRODUCTOS SAMSUNG COLOMBIA CON PUPPETEER
+
+// Este archivo usa Puppeteer (navegador headless) en lugar de Cheerio porque Samsung carga los precios dinámicamente con JavaScript
+
+import puppeteer from 'puppeteer';
 import { normalizeProduct } from "./normalizeProduct.js";
 
-/**
+/** 
+ * Función principal para extraer datos de un producto Samsung usando Puppeteer
+
+ * @param {string} url - URL completa del producto en samsung.com/co
+ * @returns {Object} - Objeto con los datos normalizados del producto
  
-  FUNCIÓN: scrapeSamsungProduct(url)
  
-  ¿Qué hace esta función?
-  Esta función extrae (scrape) información de productos desde la página
-  web de Samsung Colombia. Como Samsung NO tiene una API pública como Bose,
-  tenemos que leer el HTML de la página y extraer los datos manualmente.
-  
- * @param {string} url - La URL completa del producto de Samsung
- * @returns {Object} - Objeto con los datos del producto normalizados
- 
+  - Samsung usa JavaScript para cargar el precio dinámicamente
+  - Cheerio solo lee HTML estático, no ejecuta JavaScript
+  - Puppeteer abre un navegador real y espera a que el precio se cargue
  */
 export async function scrapeSamsungProduct(url) {
+  // Variable para el navegador (la necesitamos fuera del try para cerrarla en el finally)
+  let browser = null;
+
   try {
     console.log(`🔍 Iniciando scraping de Samsung: ${url}`);
 
+  
+    // PASO 1: INICIAR EL NAVEGADOR HEADLESS
 
-    // PASO 1: Hacer la petición HTTP a la página de Samsung
+    // headless: true = no abre ventana visible (corre en segundo plano)
+    // args: configuración para que funcione en servidores sin interfaz gráfica
     
-    // fetch() descarga el HTML completo de la página
-    // Es como abrir la página en el navegador, pero desde Node.js
-
-    const response = await fetch(url, {
-      headers: {
-        // User-Agent: Le decimos al servidor que somos un navegador real
-        // Algunos sitios bloquean peticiones que vienen de scripts
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        
-        // Accept: Le decimos al servidor qué tipo de contenido aceptamos
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        
-        // Accept-Language: Pedimos el contenido en español
-        "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
-      },
+    browser = await puppeteer.launch({
+      headless: true,  // true = invisible, false = ver el navegador (útil para debugging)
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',  // Usa menos memoria
+      ]
     });
 
-    
-    // PASO 2: Verificar que la petición fue exitosa
-    
-    
-    // response.ok es false si el servidor responde con error 
-    if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status} - La página no existe o no está disponible`);
-    }
+    console.log('Navegador iniciado');
 
-    
-    // PASO 3: Obtener el HTML completo de la página
-
-    
-    // response.text() convierte la respuesta a texto (HTML)
-    const html = await response.text();
-    
-    console.log(`✅ HTML descargado exitosamente (${html.length} caracteres)`);
-
-    
-    // PASO 4: Cargar el HTML en Cheerio para poder analizarlo
+   
+    // PASO 2: CREAR UNA NUEVA PESTAÑA (PAGE)
    
     
-    // Cheerio es como jQuery para Node.js
-    // Nos permite buscar elementos en el HTML usando selectores CSS
-    // El símbolo $ es una convención que viene de jQuery
-    const $ = cheerio.load(html);
+    const page = await browser.newPage();
 
-    console.log(`🔎 HTML cargado en Cheerio, buscando datos del producto...`);
+    // Configurar el tamaño de la ventana (algunos sitios muestran contenido diferente en móvil vs desktop)
+    await page.setViewport({ width: 1920, height: 1080 });
 
-
-    // PASO 5: Extraer el TÍTULO del producto
-    
-    
-    // Estrategia multi-nivel: intentamos varios selectores porque Samsung podría cambiar su estructura HTML en cualquier momento
-    
-    // Intento 1: Buscar en el <h1> con clase 'product-info__name'
-    let title = $('h1.product-info__name').first().text().trim();
-    
-    // Si no encontramos nada, intentamos otro selector
-    if (!title) {
-      // Intento 2: Buscar cualquier <h1> en la página
-      title = $('h1').first().text().trim();
-    }
-    
-    // Si aún no encontramos nada, intentamos el título de la página
-    if (!title) {
-      // Intento 3: Obtener el contenido de la etiqueta <title>
-      // y limpiar "| Samsung Colombia" que viene al final
-      title = $('title').text().replace('| Samsung Colombia', '').trim();
-    }
-
-    console.log(`📝 Título extraído: "${title}"`);
-
-
-    // PASO 6: Extraer el PRECIO del producto
-    
-    
-    // El precio en Samsung Colombia está dentro de un elemento con atributo data-price o en elementos con clases específicas
-    
-    let priceText = '';
-    
-    // Intento 1: Buscar precio en atributo data-price
-    const priceElement = $('[data-price]').first();
-    if (priceElement.length > 0) {
-      priceText = priceElement.attr('data-price') || '';
-    }
-    
-    // Intento 2: Buscar en meta tags (Open Graph) Los meta tags a veces contienen el precio en formato estructurado
-    if (!priceText) {
-      priceText = $('meta[property="product:price:amount"]').attr('content') || '';
-    }
-    
-    // Intento 3: Buscar en el texto visible de la página
-    if (!priceText) {
-      // Buscamos elementos que contengan "$" seguido de números
-      priceText = $('.price, .product-price, [class*="price"]')
-        .first()
-        .text()
-        .trim();
-    }
-
-    console.log(`💰 Precio raw extraído: "${priceText}"`);
-
-    // Convertir el texto del precio a número
-    const price = parseSamsungPrice(priceText);
-    
-    console.log(`💵 Precio parseado: ${price} COP`);
-
-    // ─────────────────────────────────────────────────────────────
-    // PASO 7: Extraer la DISPONIBILIDAD del producto
-    // ─────────────────────────────────────────────────────────────
-    
-    // Buscamos indicadores de que el producto NO está disponible
-    const outOfStockIndicators = [
-      'agotado',
-      'sin stock',
-      'no disponible',
-      'out of stock',
-      'sold out'
-    ];
-    
-    // Obtenemos todo el texto de la página en minúsculas
-    const pageText = $('body').text().toLowerCase();
-    
-    // El producto está disponible SI NO encontramos ningún indicador de "agotado"
-    const available = !outOfStockIndicators.some(indicator => 
-      pageText.includes(indicator)
+    // Configurar User-Agent para que parezca un navegador real
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
-    
-    // También podemos buscar botones de "Comprar" o "Agregar al carrito"
-    // Si existen estos botones, es probable que esté disponible
-    const buyButton = $('button[class*="buy"], button[class*="cart"], a[class*="buy"]');
-    const hasActiveBuyButton = buyButton.length > 0 && 
-                                !buyButton.hasClass('disabled') &&
-                                !buyButton.attr('disabled');
-    
-    // Disponibilidad final: debe tener botón de compra Y no tener indicadores de agotado
-    const finalAvailability = available && hasActiveBuyButton;
-    
-    console.log(`📦 Disponibilidad: ${finalAvailability ? 'DISPONIBLE' : 'AGOTADO'}`);
+
+    console.log('📄 Página creada, navegando a la URL...');
 
     
-    // PASO 8: Extraer la IMAGEN principal del producto
+    // PASO 3: NAVEGAR A LA URL Y ESPERAR A QUE CARGUE
     
+    // waitUntil: 'networkidle2' = espera a que no haya más de 2 conexiones de red activas
+    // Esto asegura que el JavaScript ya se ejecutó y cargó el precio
+    // timeout: 30 segundos máximo de espera
     
-    let imageUrl = '';
-    
-    // Intento 1: Buscar en meta tag Open Graph (og:image)
-    // Esta es la imagen que se muestra cuando compartes el link
-    imageUrl = $('meta[property="og:image"]').attr('content') || '';
-    
-    // Intento 2: Buscar en la galería de imágenes del producto
-    if (!imageUrl) {
-      imageUrl = $('.product-image img, [class*="gallery"] img')
-        .first()
-        .attr('src') || '';
-    }
-    
-    // Intento 3: Buscar cualquier imagen grande en la página
-    if (!imageUrl) {
-      imageUrl = $('img[class*="product"]').first().attr('src') || '';
-    }
-    
-    // Limpiar la URL de la imagen
-    // Algunas URLs empiezan con "//" en lugar de "https://"
-    if (imageUrl && imageUrl.startsWith('//')) {
-      imageUrl = 'https:' + imageUrl;
-    }
-    
-    // Si la URL es relativa (empieza con /), agregarle el dominio
-    if (imageUrl && imageUrl.startsWith('/')) {
-      imageUrl = 'https://www.samsung.com' + imageUrl;
-    }
+    await page.goto(url, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
 
-    console.log(`Imagen extraída: ${imageUrl}`);
+    console.log('✅ Página cargada completamente');
 
     
-    // PASO 9: Extraer el CÓDIGO DE MODELO (external_id)
- 
+    // PASO 4: ESPERAR A QUE EL PRECIO APAREZCA EN LA PÁGINA
     
-    let externalId = '';
+    // Esperamos a que exista algún elemento que contenga el precio
+    // Usamos múltiples selectores porque Samsung puede cambiar su estructura
     
-    // Intento 1: Buscar en meta tag
-    externalId = $('meta[name="product:sku"]').attr('content') || 
-                 $('meta[property="product:retailer_item_id"]').attr('content') || '';
+    try {
+      // Esperar máximo 10 segundos a que aparezca el precio
+      await page.waitForSelector(
+        '.price, [class*="price"], [data-price], meta[itemprop="price"]',
+        { timeout: 10000 }
+      );
+      console.log(' Elemento de precio encontrado');
+    } catch (error) {
+      console.log(' No se detectó elemento de precio, intentando extraer de todas formas...');
+    }
+
     
-    // Intento 2: Buscar en el SKU visible en la página
-    if (!externalId) {
-      const skuElement = $('[class*="sku"], [class*="model"], [data-sku]');
-      if (skuElement.length > 0) {
-        externalId = skuElement.text().trim() || skuElement.attr('data-sku') || '';
+    // PASO 5: EXTRAER TODOS LOS DATOS USANDO page.evaluate()
+    
+    // page.evaluate() ejecuta código JavaScript DENTRO de la página
+    // Es como abrir la consola del navegador y ejecutar código ahí
+    
+    const datos = await page.evaluate(() => {
+      // ESTE CÓDIGO SE EJECUTA EN EL CONTEXTO DE LA PÁGINA DE SAMSUNG
+      
+      // EXTRAER TÍTULO
+      
+      
+      let titulo = '';
+      
+      // Intento 1: Meta tag Open Graph
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) {
+        titulo = ogTitle.getAttribute('content') || '';
+      }
+      
+      // Intento 2: Tag <title>
+      if (!titulo) {
+        titulo = document.title.split('|')[0].trim();
+      }
+      
+      // Intento 3: H1 principal
+      if (!titulo) {
+        const h1 = document.querySelector('h1');
+        titulo = h1 ? h1.innerText.trim() : '';
+      }
+
+      
+      // EXTRAER PRECIO
+      
+      
+      let precioTexto = '';
+      
+      // Intento 1: Buscar en meta tags (schema.org)
+      const metaPrice = document.querySelector('meta[itemprop="price"]');
+      if (metaPrice) {
+        precioTexto = metaPrice.getAttribute('content') || '';
+      }
+      
+      // Intento 2: Buscar en atributo data-price
+      if (!precioTexto) {
+        const dataPrice = document.querySelector('[pd-buying-price__new-price-currency]');
+        if (dataPrice) {
+          precioTexto = dataPrice.getAttribute('pd-buying-price__new-price-currency') || '';
+        }
+      }
+      
+      // Intento 3: Buscar en elementos con clase price
+      if (!precioTexto) {
+        const priceElements = document.querySelectorAll(
+          '[class*="pd-buying-price__new-price-currency"]'
+        );
+        
+        for (const elem of priceElements) {
+          const texto = elem.innerText || elem.textContent || '';
+          
+          // Verificar que el texto tenga números y posiblemente símbolos de moneda
+          if (texto.match(/[\d.,]/)) {
+            precioTexto = texto;
+            break;
+          }
+        }
+      }
+      
+      // Intento 4: Buscar en todo el body texto que parezca precio
+
+      if (!precioTexto) {
+        const bodyText = document.body.innerText;
+        
+        // Regex para encontrar precios en formato colombiano
+        // Ejemplos: $2.999.000, 2.999.000, $2999000
+        const priceMatch = bodyText.match(/\$?\s*[\d]{1,2}[.,]?[\d]{3}[.,]?[\d]{3}/);
+        
+        if (priceMatch) {
+          precioTexto = priceMatch[0];
+        }
+      }
+
+      // ──────────────────────────────────────────────────────────────────
+      // EXTRAER DISPONIBILIDAD
+      // ──────────────────────────────────────────────────────────────────
+      
+      const bodyTextLower = document.body.innerText.toLowerCase();
+      
+      const palabrasNoDisponible = [
+        'agotado',
+        'sin stock',
+        'no disponible',
+        'out of stock',
+        'próximamente'
+      ];
+      
+      let disponible = true;
+      for (const palabra of palabrasNoDisponible) {
+        if (bodyTextLower.includes(palabra)) {
+          disponible = false;
+          break;
+        }
+      }
+      
+    
+      // ──────────────────────────────────────────────────────────────────
+      // EXTRAER IMAGEN
+      // ──────────────────────────────────────────────────────────────────
+      
+      let imagenUrl = '';
+      
+      // Intento 1: Meta tag Open Graph
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage) {
+        imagenUrl = ogImage.getAttribute('content') || '';
+      }
+      
+      // Intento 2: Primera imagen de producto
+      if (!imagenUrl) {
+        const productImage = document.querySelector(
+          '.image__main'
+        );
+        
+        if (productImage) {
+          imagenUrl = productImage.src || productImage.getAttribute('data-src') || '';
+        }
+      }
+
+      
+      // EXTRAER CÓDIGO DE MODELO
+      
+      
+      let codigoModelo = '';
+      
+      // Intento 1: Buscar en SKU
+      const sku = document.querySelector('[data-sku], [itemprop="sku"], .sku, .model-code');
+      if (sku) {
+        codigoModelo = sku.innerText || sku.textContent || '';
+      }
+      
+      // Intento 2: Extraer de la URL
+      if (!codigoModelo) {
+        const urlParts = window.location.pathname.split('/');
+        const ultimaParte = urlParts[urlParts.length - 2] || urlParts[urlParts.length - 1];
+        codigoModelo = ultimaParte.toUpperCase().replace(/-/g, '');
+      }
+
+      
+      // RETORNAR TODOS LOS DATOS
+      
+      
+      return {
+        titulo: titulo,
+        precioTexto: precioTexto,
+        disponible: disponible,
+        imagenUrl: imagenUrl,
+        codigoModelo: codigoModelo,
+      };
+    });
+
+    console.log('📊 Datos extraídos del navegador:');
+    console.log(`   Título: "${datos.titulo}"`);
+    console.log(`   Precio (raw): "${datos.precioTexto}"`);
+    console.log(`   Disponible: ${datos.disponible}`);
+    console.log(`   Código: ${datos.codigoModelo}`);
+
+   
+    // PASO 6: PROCESAR EL PRECIO
+    
+    
+    const precio = parsearPrecioSamsung(datos.precioTexto);
+
+    if (!precio || precio <= 0) {
+      throw new Error(`Precio inválido: "${datos.precioTexto}" no pudo ser convertido a número`);
+    }
+
+    // Asegurar que la URL de imagen sea completa
+    let imagenCompleta = datos.imagenUrl;
+    if (imagenCompleta && !imagenCompleta.startsWith('http')) {
+      if (imagenCompleta.startsWith('//')) {
+        imagenCompleta = 'https:' + imagenCompleta;
+      } else if (imagenCompleta.startsWith('/')) {
+        imagenCompleta = 'https://www.samsung.com' + imagenCompleta;
       }
     }
-    
-    // Intento 3: Extraer de la URL
-    // El código del modelo suele estar al final
-    if (!externalId) {
-      const urlParts = url.split('/');
-      // Obtener la última parte que no esté vacía
-      externalId = urlParts.filter(part => part.length > 0).pop() || '';
-    }
 
-    console.log(`🔢 ID Externo extraído: "${externalId}"`);
-
-    // ─────────────────────────────────────────────────────────────
-    // PASO 10: Crear el objeto con los datos extraídos
-    // ─────────────────────────────────────────────────────────────
+  
+    // PASO 7: ENSAMBLAR OBJETO FINAL
     
-    const raw = {
-      external_id: externalId,           // Código único del producto
-      title:       title,                // Nombre del producto
-      price:       price,                // Precio en pesos colombianos (número)
-      available:   finalAvailability,    // Si está disponible para comprar
-      image:       imageUrl,             // URL de la imagen principal
-      vendor:      "Samsung",            // Marca (siempre Samsung para este scraper)
+    
+    const datosExtraidos = {
+      external_id: datos.codigoModelo || 'SAMSUNG_' + Date.now(),
+      title:       datos.titulo,
+      price:       precio,
+      available:   datos.disponible,
+      image:       imagenCompleta || null,
+      vendor:      'Samsung',
     };
 
-    console.log(`Datos extraídos:`, raw);
+    console.log(`Datos procesados exitosamente`);
 
+   
+    // PASO 8: NORMALIZAR Y RETORNAR
+  
     
-    // PASO 11: Validar y normalizar los datos
- 
-    
-    // normalizeProduct() verifica que todos los campos estén correctos
-    // y lanza un error si falta algo importante
-    const normalizedData = normalizeProduct(raw, "Samsung");
-    
-    console.log(`✅ Producto de Samsung scrapeado exitosamente`);
-    
-    return normalizedData;
+    return normalizeProduct(datosExtraidos, "Samsung");
 
   } catch (error) {
-    // ─────────────────────────────────────────────────────────────
+    
     // MANEJO DE ERRORES
-    // ─────────────────────────────────────────────────────────────
     
-    // Si algo sale mal en cualquier paso, capturamos el error aquí
-    console.error(`❌ Error en scraper de Samsung:`, error.message);
     
-    // Re-lanzamos el error con más contexto para que updateService sepa que hubo un problema
-    throw new Error(`Error scrapeando producto de Samsung: ${error.message}`);
+    console.error('❌ Error en scraper de Samsung:', error.message);
+    throw new Error(`Error scraping Samsung (${url}): ${error.message}`);
+
+  } finally {
+  
+    // PASO 9: CERRAR EL NAVEGADOR SIEMPRE
+    
+    // Esto se ejecuta incluso si hubo un error
+    // Es MUY IMPORTANTE cerrar el navegador para no tener memory leaks
+    
+    if (browser) {
+      await browser.close();
+      console.log('🔒 Navegador cerrado');
+    }
   }
 }
 
 /**
-  FUNCIÓN AUXILIAR: parseSamsungPrice(priceText)
- 
-  Convierte el texto del precio (como "$ 1.799.000") a un número (1799000)
-  
- * @param {string} priceText - Texto que contiene el precio
- * @returns {number} - Precio como número entero
-  
+ Función auxiliar para convertir texto de precio a número
  */
-function parseSamsungPrice(priceText) {
-  // Si no hay texto, retornar 0
-  if (!priceText) {
-    console.warn(`⚠️ Precio vacío recibido, retornando 0`);
+function parsearPrecioSamsung(precioTexto) {
+  if (!precioTexto) {
     return 0;
   }
 
-  // Paso 1: Eliminar todo lo que NO sea un número o punto
-  // Esto elimina: $, espacios, letras (COP), etc.
-  let cleaned = priceText.replace(/[^\d.]/g, '');
-  
-  // Paso 2: En Colombia, el punto se usa para separar miles
-  // Tenemos que eliminar todos los puntos
-  cleaned = cleaned.replace(/\./g, '');
-  
-  // Paso 3: Convertir a número entero
-  const price = parseInt(cleaned, 10);
-  
-  // Paso 4: Validar que el resultado sea un número válido
-  if (isNaN(price) || price <= 0) {
-    throw new Error(`Precio inválido: "${priceText}" no pudo ser convertido a número`);
-  }
-  
-  return price;
-}
+  let precioLimpio = String(precioTexto);
 
+  console.log(`Limpiando precio: "${precioLimpio}"`);
+
+  // Eliminar símbolos y letras
+  precioLimpio = precioLimpio.replace(/\$/g, '').trim();
+  precioLimpio = precioLimpio.replace(/[A-Za-z]/g, '');
+  precioLimpio = precioLimpio.replace(/\./g, '');
+  precioLimpio = precioLimpio.replace(/,/g, '');
+  precioLimpio = precioLimpio.trim();
+
+  console.log(`✨ Precio limpio: "${precioLimpio}"`);
+
+  const precioNumero = parseInt(precioLimpio, 10);
+
+  if (isNaN(precioNumero) || precioNumero <= 0) {
+    console.error(`❌ No se pudo convertir "${precioTexto}" a número válido`);
+    return 0;
+  }
+
+  console.log(`💵 Precio final: ${precioNumero.toLocaleString('es-CO')}`);
+
+  return precioNumero;
+}
