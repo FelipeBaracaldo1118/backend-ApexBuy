@@ -295,4 +295,4 @@ function extractBrandFromTitle(titulo) {
   }
   
   return 'Unknown';
-}
+} 

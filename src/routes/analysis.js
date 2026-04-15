@@ -232,7 +232,7 @@ router.get('/product/:productId/history', async (req, res) => {
  Query params, el teshold es basicamente el valor por el cual va a haber  un cambio:
  - threshold: porcentaje mínimo de cambio (default: 5)
   
- 
+  
  */
 router.get('/product/:productId/changes', async (req, res) => {
   try {
