@@ -43,6 +43,7 @@ Monitoreo competitivo de precios para compras y decisiones comerciales.
 | **Cobertura operativa actual** | Múltiples fuentes por referencia (proveedores y competidores) en actualización masiva y por producto individual. |
 | **Pipeline único** | `normalizeProduct` → `getOrCreateProduct` → `savePrice`. |
 | **Actualización masiva** | Un endpoint ejecuta Bose → Samsung → Ktronix → Mansion → Falabella en orden. |
+| **Validación en competidores** | Falabella valida vendedor para priorizar productos vendidos por la propia tienda. |
 | **Análisis por producto y por grupo** | Márgenes, competencia (min/max/promedio), clasificación de oportunidad. |
 | **Administración de grupos** | Crear grupos, listar, vincular / desvincular productos. |
 
@@ -95,6 +96,17 @@ Monitoreo competitivo de precios para compras y decisiones comerciales.
 | **Rutas de actualización** | Masivo e individual por fuente + `all-providers`. |
 | **Análisis** | Por `productId`, historial y cambios, por `groupId`, comparativa supplier-vs-competitor, oportunidades (completas y filtradas), estadísticas globales. |
 | **Admin** | CRUD de grupos y vínculos producto ↔ grupo. |
+
+Endpoints principales actualmente montados:
+- `GET /api/update/bose`, `GET /api/update/bose/:handle`
+- `GET /api/update/samsung`, `GET /api/update/samsung-single?url=...`
+- `GET /api/update/ktronix`, `GET /api/update/ktronix-single?url=...`
+- `GET /api/update/mansion`, `GET /api/update/mansion-single?url=...`
+- `GET /api/update/falabella`, `GET /api/update/falabella-single?url=...`
+- `GET /api/update/all-providers`
+- `GET /api/analysis/product/:productId`, `GET /api/analysis/product/:productId/history`, `GET /api/analysis/product/:productId/changes`
+- `GET /api/analysis/group/:groupId`, `GET /api/analysis/group/:groupId/supplier-vs-competitor`
+- `GET /api/analysis/opportunities`, `GET /api/analysis/opportunities/filtered`, `GET /api/analysis/stats`
 
 ---
 
@@ -206,6 +218,7 @@ curl -s http://localhost:3000/api/update/falabella
 # Un producto por URL (codifica la URL en el cliente si hace falta)
 curl -s "http://localhost:3000/api/update/samsung-single?url=https%3A%2F%2Fwww.samsung.com%2Fco%2F..."
 curl -s "http://localhost:3000/api/update/ktronix-single?url=https%3A%2F%2Fwww.ktronix.com%2F..."
+curl -s "http://localhost:3000/api/update/mansion-single?url=https%3A%2F%2Fwww.grupomansion.com%2F..."
 curl -s "http://localhost:3000/api/update/falabella-single?url=https%3A%2F%2Fwww.falabella.com.co%2F..."
 
 # Análisis
@@ -335,6 +348,7 @@ Si faltan precios de proveedor o de competidor, el estado devuelve `missing_supp
 |------|------|
 | **Manual API** | `npm run dev` + [curl](#ejemplos-curl) o Thunder Client / Postman. |
 | **Script Samsung** | `node tests/test-samsung-simple.js` (requiere red; abre Puppeteer). |
+| **Scraper Falabella** | Validación manual recomendada vía `GET /api/update/falabella-single?url=...` para verificar extracción y vendedor. |
 | **Suite automatizada** | Aún no configurada (`npm test` es placeholder en `package.json`). |
 
 ---
