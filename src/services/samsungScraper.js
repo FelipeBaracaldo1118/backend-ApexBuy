@@ -1,283 +1,179 @@
-
 // SCRAPER DE PRODUCTOS SAMSUNG COLOMBIA CON PUPPETEER
-
-// Este archivo usa Puppeteer (navegador headless) en lugar de Cheerio porque Samsung carga los precios dinámicamente con JavaScript
+// Clase correcta confirmada: .pd-buying-price__new-price-currency
 
 import puppeteer from 'puppeteer';
 import { normalizeProduct } from "./normalizeProduct.js";
 
-/** 
- * Función principal para extraer datos de un producto Samsung usando Puppeteer
-
- * @param {string} url - URL completa del producto en samsung.com/co
- * @returns {Object} - Objeto con los datos normalizados del producto
- 
- 
-  - Samsung usa JavaScript para cargar el precio dinámicamente
-  - Cheerio solo lee HTML estático, no ejecuta JavaScript
-  - Puppeteer abre un navegador real y espera a que el precio se cargue
- */
 export async function scrapeSamsungProduct(url) {
-  // Variable para el navegador (la necesitamos fuera del try para cerrarla en el finally)
   let browser = null;
 
   try {
-    console.log(`🔍 Iniciando scraping de Samsung: ${url}`);
+    console.log(`🔍 Iniciando scraping Samsung: ${url}`);
 
-  
-    // PASO 1: INICIAR EL NAVEGADOR HEADLESS
-
-    // headless: true = no abre ventana visible (corre en segundo plano)
-    // args: configuración para que funcione en servidores sin interfaz gráfica
-    
     browser = await puppeteer.launch({
-      headless: true,  // true = invisible, false = ver el navegador (útil para debugging)
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',  // Usa menos memoria
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
       ]
     });
 
-    console.log('Navegador iniciado');
-
-   
-    // PASO 2: CREAR UNA NUEVA PESTAÑA (PAGE)
-   
-    
     const page = await browser.newPage();
-
-    // Configurar el tamaño de la ventana (algunos sitios muestran contenido diferente en móvil vs desktop)
     await page.setViewport({ width: 1920, height: 1080 });
-
-    // Configurar User-Agent para que parezca un navegador real
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
-    console.log('📄 Página creada, navegando a la URL...');
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
+    console.log('✅ Página cargada');
 
-    
-    // PASO 3: NAVEGAR A LA URL Y ESPERAR A QUE CARGUE
-    
-    // waitUntil: 'networkidle2' = espera a que no haya más de 2 conexiones de red activas
-    // Esto asegura que el JavaScript ya se ejecutó y cargó el precio
-    // timeout: 30 segundos máximo de espera
-    
-    await page.goto(url, {
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
-
-    console.log('✅ Página cargada completamente');
-
-    
-    // PASO 4: ESPERAR A QUE EL PRECIO APAREZCA EN LA PÁGINA
-    
-    // Esperamos a que exista algún elemento que contenga el precio
-    // Usamos múltiples selectores porque Samsung puede cambiar su estructura
-    
+    // Esperar el elemento de precio confirmado
     try {
-      // Esperar máximo 10 segundos a que aparezca el precio
-      await page.waitForSelector(
-        '.price, [class*="price"], [data-price], meta[itemprop="price"]',
-        { timeout: 10000 }
-      );
-      console.log(' Elemento de precio encontrado');
-    } catch (error) {
-      console.log(' No se detectó elemento de precio, intentando extraer de todas formas...');
+      await page.waitForSelector('.pd-buying-price__new-price-currency', { timeout: 12000 });
+      console.log('✅ Elemento de precio encontrado (.pd-buying-price__new-price-currency)');
+    } catch {
+      console.log('⚠️  Selector principal no encontrado, intentando extraer igual...');
     }
 
-    
-    // PASO 5: EXTRAER TODOS LOS DATOS USANDO page.evaluate()
-    
-    // page.evaluate() ejecuta código JavaScript DENTRO de la página
-    // Es como abrir la consola del navegador y ejecutar código ahí
-    
     const datos = await page.evaluate(() => {
-      // ESTE CÓDIGO SE EJECUTA EN EL CONTEXTO DE LA PÁGINA DE SAMSUNG
-      
-      // EXTRAER TÍTULO
-      
-      
+      // ── TÍTULO ──────────────────────────────────────────────────────────
       let titulo = '';
-      
-      // Intento 1: Meta tag Open Graph
       const ogTitle = document.querySelector('meta[property="og:title"]');
-      if (ogTitle) {
-        titulo = ogTitle.getAttribute('content') || '';
-      }
-      
-      // Intento 2: Tag <title>
-      if (!titulo) {
-        titulo = document.title.split('|')[0].trim();
-      }
-      
-      // Intento 3: H1 principal
+      if (ogTitle) titulo = ogTitle.getAttribute('content') || '';
+      if (!titulo) titulo = document.title.split('|')[0].trim();
       if (!titulo) {
         const h1 = document.querySelector('h1');
         titulo = h1 ? h1.innerText.trim() : '';
       }
 
-      
-      // EXTRAER PRECIO
-      
-      
+      // ── PRECIO — estrategias en orden de prioridad ────────────────────
       let precioTexto = '';
-      
-      // Intento 1: Buscar en meta tags (schema.org)
-      const metaPrice = document.querySelector('meta[itemprop="price"]');
-      if (metaPrice) {
-        precioTexto = metaPrice.getAttribute('content') || '';
-      }
-      
-      // Intento 2: Buscar en atributo data-price
-      if (!precioTexto) {
-        const dataPrice = document.querySelector('[pd-buying-price__new-price-currency]');
-        if (dataPrice) {
-          precioTexto = dataPrice.getAttribute('pd-buying-price__new-price-currency') || '';
-        }
-      }
-      
-      // Intento 3: Buscar en elementos con clase price
-      if (!precioTexto) {
-        const priceElements = document.querySelectorAll(
-          '[class*="pd-buying-price__new-price-currency"]'
-        );
-        
-        for (const elem of priceElements) {
-          const texto = elem.innerText || elem.textContent || '';
-          
-          // Verificar que el texto tenga números y posiblemente símbolos de moneda
-          if (texto.match(/[\d.,]/)) {
-            precioTexto = texto;
+      let estrategiaUsada = '';
+
+      // 1. Clase confirmada: .pd-buying-price__new-price-currency
+      const priceEl = document.querySelector('.pd-buying-price__new-price-currency');
+      if (priceEl) {
+        const candidates = [
+          priceEl.textContent,
+          priceEl.innerText,
+          priceEl.innerHTML,
+        ];
+        for (const c of candidates) {
+          if (c && c.match(/[\d]{1,3}[.,][\d]{3}/)) {
+            precioTexto = c;
+            estrategiaUsada = '1-clase-confirmada';
             break;
           }
         }
       }
-      
-      // Intento 4: Buscar en todo el body texto que parezca precio
 
+      // 2. Todos los hijos del elemento de precio (el número puede estar en un span hijo)
+      if (!precioTexto && priceEl) {
+        const allChildren = priceEl.querySelectorAll('*');
+        for (const child of allChildren) {
+          const t = child.textContent || child.innerText || '';
+          if (t.match(/[\d]{1,3}[.,][\d]{3}/)) {
+            precioTexto = t;
+            estrategiaUsada = '2-hijo-clase-confirmada';
+            break;
+          }
+        }
+      }
+
+      // 3. Schema.org meta tag
+      if (!precioTexto) {
+        const meta = document.querySelector('meta[itemprop="price"]');
+        if (meta) {
+          precioTexto = meta.getAttribute('content') || '';
+          estrategiaUsada = '3-meta-schema';
+        }
+      }
+
+      // 4. JSON-LD structured data
+      if (!precioTexto) {
+        const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const s of scripts) {
+          try {
+            const json = JSON.parse(s.textContent);
+            const price = json?.offers?.price || json?.price;
+            if (price && Number(price) > 0) {
+              precioTexto = String(price);
+              estrategiaUsada = '4-json-ld';
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      // 5. Cualquier elemento con "price" en la clase
+      if (!precioTexto) {
+        const all = document.querySelectorAll('[class*="price"]');
+        for (const el of all) {
+          const t = (el.textContent || '').trim();
+          if (t.match(/\$?\s*[\d]{1,3}[.,][\d]{3}[.,][\d]{3}/)) {
+            precioTexto = t;
+            estrategiaUsada = '5-clase-price';
+            break;
+          }
+        }
+      }
+
+      // 6. Regex en todo el body (último recurso)
       if (!precioTexto) {
         const bodyText = document.body.innerText;
-        
-        // Regex para encontrar precios en formato colombiano
-        // Ejemplos: $2.999.000, 2.999.000, $2999000
-        const priceMatch = bodyText.match(/\$?\s*[\d]{1,2}[.,]?[\d]{3}[.,]?[\d]{3}/);
-        
-        if (priceMatch) {
-          precioTexto = priceMatch[0];
+        const match = bodyText.match(/\$?\s*[\d]{1,2}[.,][\d]{3}[.,][\d]{3}/);
+        if (match) {
+          precioTexto = match[0];
+          estrategiaUsada = '6-regex-body';
         }
       }
 
-      // ──────────────────────────────────────────────────────────────────
-      // EXTRAER DISPONIBILIDAD
-      // ──────────────────────────────────────────────────────────────────
-      
-      const bodyTextLower = document.body.innerText.toLowerCase();
-      
-      const palabrasNoDisponible = [
-        'agotado',
-        'sin stock',
-        'no disponible',
-        'out of stock',
-        'próximamente'
-      ];
-      
-      let disponible = true;
-      for (const palabra of palabrasNoDisponible) {
-        if (bodyTextLower.includes(palabra)) {
-          disponible = false;
-          break;
-        }
-      }
-      
-    
-      // ──────────────────────────────────────────────────────────────────
-      // EXTRAER IMAGEN
-      // ──────────────────────────────────────────────────────────────────
-      
+      // ── DISPONIBILIDAD ───────────────────────────────────────────────
+      const bodyLower = document.body.innerText.toLowerCase();
+      const noDisp = ['agotado', 'sin stock', 'no disponible', 'out of stock', 'próximamente'];
+      const disponible = !noDisp.some(p => bodyLower.includes(p));
+
+      // ── IMAGEN ───────────────────────────────────────────────────────
       let imagenUrl = '';
-      
-      // Intento 1: Meta tag Open Graph
-      const ogImage = document.querySelector('meta[property="og:image"]');
-      if (ogImage) {
-        imagenUrl = ogImage.getAttribute('content') || '';
-      }
-      
-      // Intento 2: Primera imagen de producto
+      const ogImg = document.querySelector('meta[property="og:image"]');
+      if (ogImg) imagenUrl = ogImg.getAttribute('content') || '';
       if (!imagenUrl) {
-        const productImage = document.querySelector(
-          '.image__main'
-        );
-        
-        if (productImage) {
-          imagenUrl = productImage.src || productImage.getAttribute('data-src') || '';
-        }
+        const img = document.querySelector('.image__main, [class*="product-image"] img');
+        if (img) imagenUrl = img.src || img.getAttribute('data-src') || '';
       }
 
-      
-      // EXTRAER CÓDIGO DE MODELO
-      
-      
+      // ── CÓDIGO DE MODELO ─────────────────────────────────────────────
       let codigoModelo = '';
-      
-      // Intento 1: Buscar en SKU
-      const sku = document.querySelector('[data-sku], [itemprop="sku"], .sku, .model-code');
-      if (sku) {
-        codigoModelo = sku.innerText || sku.textContent || '';
-      }
-      
-      // Intento 2: Extraer de la URL
+      const sku = document.querySelector('[data-sku], [itemprop="sku"], .model-code');
+      if (sku) codigoModelo = (sku.innerText || sku.textContent || '').trim();
       if (!codigoModelo) {
-        const urlParts = window.location.pathname.split('/');
-        const ultimaParte = urlParts[urlParts.length - 2] || urlParts[urlParts.length - 1];
-        codigoModelo = ultimaParte.toUpperCase().replace(/-/g, '');
+        const parts = window.location.pathname.split('/').filter(Boolean);
+        codigoModelo = (parts[parts.length - 1] || parts[parts.length - 2] || '')
+          .toUpperCase().replace(/-/g, '');
       }
 
-      
-      // RETORNAR TODOS LOS DATOS
-      
-      
-      return {
-        titulo: titulo,
-        precioTexto: precioTexto,
-        disponible: disponible,
-        imagenUrl: imagenUrl,
-        codigoModelo: codigoModelo,
-      };
+      return { titulo, precioTexto, disponible, imagenUrl, codigoModelo, estrategiaUsada };
     });
 
-    console.log('📊 Datos extraídos del navegador:');
-    console.log(`   Título: "${datos.titulo}"`);
-    console.log(`   Precio (raw): "${datos.precioTexto}"`);
-    console.log(`   Disponible: ${datos.disponible}`);
-    console.log(`   Código: ${datos.codigoModelo}`);
+    console.log(`📊 Título: "${datos.titulo}"`);
+    console.log(`📊 Precio (raw): "${datos.precioTexto}" [estrategia: ${datos.estrategiaUsada}]`);
+    console.log(`📊 Disponible: ${datos.disponible}`);
 
-   
-    // PASO 6: PROCESAR EL PRECIO
-    
-    
     const precio = parsearPrecioSamsung(datos.precioTexto);
 
     if (!precio || precio <= 0) {
-      throw new Error(`Precio inválido: "${datos.precioTexto}" no pudo ser convertido a número`);
+      throw new Error(`No se pudo extraer precio válido de: "${datos.precioTexto}" — URL: ${url}`);
     }
 
-    // Asegurar que la URL de imagen sea completa
     let imagenCompleta = datos.imagenUrl;
     if (imagenCompleta && !imagenCompleta.startsWith('http')) {
-      if (imagenCompleta.startsWith('//')) {
-        imagenCompleta = 'https:' + imagenCompleta;
-      } else if (imagenCompleta.startsWith('/')) {
-        imagenCompleta = 'https://www.samsung.com' + imagenCompleta;
-      }
+      imagenCompleta = imagenCompleta.startsWith('//')
+        ? 'https:' + imagenCompleta
+        : 'https://www.samsung.com' + imagenCompleta;
     }
 
-  
-    // PASO 7: ENSAMBLAR OBJETO FINAL
-    
-    
     const datosExtraidos = {
       external_id: datos.codigoModelo || 'SAMSUNG_' + Date.now(),
       title:       datos.titulo,
@@ -287,29 +183,13 @@ export async function scrapeSamsungProduct(url) {
       vendor:      'Samsung',
     };
 
-    console.log(`Datos procesados exitosamente`);
-
-   
-    // PASO 8: NORMALIZAR Y RETORNAR
-  
-    
+    console.log(`✅ Samsung OK: ${datosExtraidos.title} → $${precio.toLocaleString('es-CO')}`);
     return normalizeProduct(datosExtraidos, "Samsung");
 
   } catch (error) {
-    
-    // MANEJO DE ERRORES
-    
-    
-    console.error('❌ Error en scraper de Samsung:', error.message);
+    console.error('❌ Error en scraper Samsung:', error.message);
     throw new Error(`Error scraping Samsung (${url}): ${error.message}`);
-
   } finally {
-  
-    // PASO 9: CERRAR EL NAVEGADOR SIEMPRE
-    
-    // Esto se ejecuta incluso si hubo un error
-    // Es MUY IMPORTANTE cerrar el navegador para no tener memory leaks
-    
     if (browser) {
       await browser.close();
       console.log('🔒 Navegador cerrado');
@@ -317,35 +197,46 @@ export async function scrapeSamsungProduct(url) {
   }
 }
 
-/**
- Función auxiliar para convertir texto de precio a número
- */
 function parsearPrecioSamsung(precioTexto) {
-  if (!precioTexto) {
+  if (!precioTexto) return 0;
+
+  let s = String(precioTexto).trim();
+
+  // Si es solo número (de JSON-LD), convertir directo
+  if (/^\d+$/.test(s)) {
+    const n = parseInt(s, 10);
+    return n > 0 ? n : 0;
+  }
+
+  // Remover todo excepto dígitos, puntos y comas
+  s = s.replace(/[^0-9.,]/g, '');
+
+  // Formato colombiano: 3.899.900 → separadores de miles son puntos
+  // Detectar si hay dos puntos (miles) o punto decimal
+  const dotsCount  = (s.match(/\./g) || []).length;
+  const commaCount = (s.match(/,/g)  || []).length;
+
+  if (dotsCount >= 2) {
+    // 3.899.900 → quitar puntos
+    s = s.replace(/\./g, '').replace(/,/g, '');
+  } else if (dotsCount === 1 && commaCount === 0) {
+    // Puede ser decimal (3.5) o miles (3.500) — si termina en 3 dígitos = miles
+    const parts = s.split('.');
+    if (parts[1] && parts[1].length === 3) {
+      s = s.replace(/\./g, ''); // miles
+    } else {
+      s = s.replace(/\./g, ''); // tratar como entero
+    }
+  } else {
+    s = s.replace(/\./g, '').replace(/,/g, '');
+  }
+
+  const n = parseInt(s, 10);
+  if (isNaN(n) || n <= 0) {
+    console.error(`❌ No se pudo parsear precio: "${precioTexto}"`);
     return 0;
   }
 
-  let precioLimpio = String(precioTexto);
-
-  console.log(`Limpiando precio: "${precioLimpio}"`);
-
-  // Eliminar símbolos y letras
-  precioLimpio = precioLimpio.replace(/\$/g, '').trim();
-  precioLimpio = precioLimpio.replace(/[A-Za-z]/g, '');
-  precioLimpio = precioLimpio.replace(/\./g, '');
-  precioLimpio = precioLimpio.replace(/,/g, '');
-  precioLimpio = precioLimpio.trim();
-
-  console.log(`✨ Precio limpio: "${precioLimpio}"`);
-
-  const precioNumero = parseInt(precioLimpio, 10);
-
-  if (isNaN(precioNumero) || precioNumero <= 0) {
-    console.error(`❌ No se pudo convertir "${precioTexto}" a número válido`);
-    return 0;
-  }
-
-  console.log(`💵 Precio final: ${precioNumero.toLocaleString('es-CO')}`);
-
-  return precioNumero;
+  console.log(`💵 Precio parseado: $${n.toLocaleString('es-CO')}`);
+  return n;
 }

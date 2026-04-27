@@ -164,7 +164,7 @@ export async function scrapeFalabellaProduct(url) {
       if (textoCompleto.includes('agotado') || 
           textoCompleto.includes('no disponible') ||
           textoCompleto.includes('sin stock')) {
-        data.disponible = true;
+        data.disponible = false;
       }
 
       return data;
@@ -295,4 +295,4 @@ function extractBrandFromTitle(titulo) {
   }
   
   return 'Unknown';
-} 
+}

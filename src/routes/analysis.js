@@ -1,4 +1,3 @@
-
 import express from "express";
 import { 
   
@@ -8,7 +7,10 @@ import {
   getOpportunitiesFiltered,
   getPriceHistory,
   detectPriceChanges,
-  getGlobalStats
+  getGlobalStats,
+  getAggregatedPriceHistory,
+  getProductsList,
+  getOpportunitiesWithDetail
 } from "../services/analysisService.js";
 
 const router = express.Router();
@@ -279,5 +281,58 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/analysis/opportunities/detail
+ * Oportunidades con desglose por competidor individual
+ */
+router.get('/opportunities/detail', async (req, res) => {
+  try {
+    const data = await getOpportunitiesWithDetail();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error en /opportunities/detail:', error);
+    res.status(500).json({ error: 'Error obteniendo detalle', details: error.message });
+  }
+});
+
+/**
+ * GET /api/analysis/history/aggregate
+ * Historial de precios agregado (promedio de todos los productos por día)
+ * NO requiere UUID — útil para la gráfica del dashboard en modo "todos"
+ *
+ * Query params:
+ * - limit: días hacia atrás (default: 30)
+ */
+router.get('/history/aggregate', async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const history = await getAggregatedPriceHistory(limit ? parseInt(limit) : 30);
+    res.json(history);
+  } catch (error) {
+    console.error('❌ Error en /history/aggregate:', error);
+    res.status(500).json({
+      error: 'Error obteniendo historial agregado',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/analysis/products
+ * Lista de productos con UUID real — para el selector de la gráfica
+ */
+router.get('/products', async (req, res) => {
+  try {
+    const products = await getProductsList();
+    res.json(products);
+  } catch (error) {
+    console.error('❌ Error en /analysis/products:', error);
+    res.status(500).json({
+      error: 'Error obteniendo productos',
+      details: error.message
+    });
+  }
+});
 
 export default router;

@@ -1,4 +1,3 @@
-
 import { pool } from '../config/database.js';
 
 
@@ -450,5 +449,173 @@ export const detectPriceChanges = async (productId, threshold = 5) => {
   } catch (error) {
     console.error('❌ Error en getGlobalStats:', error.message);
     throw error;
+  }
+};
+/**
+ * Historial agregado de precios (promedio de todos los productos)
+ * No requiere UUID — usa datos de la tabla prices directamente
+ * @param {Number} limit - Días hacia atrás (default: 30)
+ * @returns {Array} - [{fecha, precio_compra_avg, precio_competencia_avg}]
+ */
+export const getAggregatedPriceHistory = async (limit = 30) => {
+  try {
+    console.log(`📊 Obteniendo historial agregado (últimos ${limit} días)...`);
+
+    const result = await pool.query(`
+      SELECT
+        DATE(pr.created_at) AS fecha,
+        ROUND(AVG(CASE WHEN s.role = 'provider' THEN pr.price END)) AS precio_compra_avg,
+        ROUND(AVG(CASE WHEN s.role = 'competitor' THEN pr.price END)) AS precio_competencia_avg,
+        COUNT(DISTINCT pr.product_id) AS productos_count
+      FROM prices pr
+      JOIN sources s ON pr.source_id = s.id
+      WHERE pr.created_at >= NOW() - INTERVAL '1 day' * $1
+      GROUP BY DATE(pr.created_at)
+      ORDER BY fecha ASC
+    `, [limit]);
+
+    console.log(`✅ ${result.rows.length} días de historial agregado encontrados`);
+    return result.rows || [];
+
+  } catch (error) {
+    console.error('❌ Error en getAggregatedPriceHistory:', error.message);
+    throw new Error(`Error obteniendo historial agregado: ${error.message}`);
+  }
+};
+
+/**
+ * Listar todos los productos con su UUID para el selector de la gráfica
+ * @returns {Array} - [{id, name, brand}]
+ */
+export const getProductsList = async () => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, brand
+      FROM products
+      ORDER BY name ASC
+    `);
+    return result.rows || [];
+  } catch (error) {
+    console.error('❌ Error en getProductsList:', error.message);
+    throw new Error(`Error obteniendo lista de productos: ${error.message}`);
+  }
+};
+
+/**
+ * Oportunidades con desglose por competidor
+ * Igual que get_opportunities pero incluye precio de cada fuente competidora
+ * + URLs de scraping para validación externa
+ */
+export const getOpportunitiesWithDetail = async () => {
+  try {
+    const result = await pool.query(`
+      WITH latest_prices_providers AS (
+        SELECT DISTINCT ON (product_id, source_id)
+          product_id, source_id, price, created_at
+        FROM prices
+        WHERE available = true
+        ORDER BY product_id, source_id, created_at DESC
+      ),
+
+      -- Para competidores NO filtramos available — el precio es válido aunque
+      -- Falabella marque el producto como no disponible temporalmente
+      latest_prices_competitors AS (
+        SELECT DISTINCT ON (product_id, source_id)
+          product_id, source_id, price, created_at
+        FROM prices
+        ORDER BY product_id, source_id, created_at DESC
+      ),
+
+      -- Productos proveedor con su costo neto
+      providers AS (
+        SELECT
+          p.id,
+          p.name,
+          p.brand,
+          p.image,
+          p.external_id,
+          p.product_group_id,
+          s.name            AS fuente,
+          s.wholesale_discount,
+          lp.price          AS precio_lista,
+          ROUND(lp.price * (1 - COALESCE(s.wholesale_discount, 0) / 100.0)) AS costo
+        FROM products p
+        JOIN sources s      ON p.source_id = s.id
+        JOIN latest_prices_providers lp ON p.id = lp.product_id AND lp.source_id = s.id
+        WHERE s.role = 'provider'
+      ),
+
+      -- Competidores — JOIN por product_group_id (match exacto por producto)
+      competitors AS (
+        SELECT
+          p.product_group_id,
+          s.name   AS fuente,
+          lp.price,
+          lp.created_at
+        FROM products p
+        JOIN sources s        ON p.source_id = s.id
+        JOIN latest_prices_competitors lp ON p.id = lp.product_id AND lp.source_id = s.id
+        WHERE s.role = 'competitor'
+          AND p.product_group_id IS NOT NULL
+      )
+
+      SELECT
+        pv.name               AS producto,
+        pv.brand,
+        pv.image,
+        pv.fuente             AS fuente_proveedor,
+        pv.precio_lista,
+        pv.costo              AS precio_compra,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'fuente', c.fuente,
+              'precio', c.price,
+              'fecha',  c.created_at
+            ) ORDER BY c.price ASC
+          ) FILTER (WHERE c.fuente IS NOT NULL),
+          '[]'::json
+        ) AS competidores
+      FROM providers pv
+      -- JOIN exacto por grupo — cada proveedor solo ve sus competidores del mismo grupo
+      LEFT JOIN competitors c ON pv.product_group_id = c.product_group_id
+      GROUP BY pv.id, pv.name, pv.brand, pv.image, pv.fuente, pv.precio_lista, pv.costo
+      ORDER BY pv.name
+    `);
+
+    // Calcular métricas por producto en JS
+    return result.rows.map(row => {
+      const competidores = row.competidores || [];
+      const precios = competidores.map(c => Number(c.precio));
+      const precioComp = precios.length > 0
+        ? Math.round(precios.reduce((a, b) => a + b, 0) / precios.length)
+        : Number(row.precio_lista);
+      const ganancia = precioComp - Number(row.precio_compra);
+      const margen = precioComp > 0
+        ? Math.round((ganancia / precioComp) * 1000) / 10
+        : 0;
+
+      return {
+        producto:       row.producto,
+        brand:          row.brand,
+        image: row.image,
+        fuente:         row.fuente_proveedor,
+        precio_lista:   Number(row.precio_lista),
+        precio_compra:  Number(row.precio_compra),
+        precio_competencia: precioComp,
+        ganancia,
+        margen_porcentaje: margen,
+        decision: ganancia > 0 ? '✅ OPORTUNIDAD' : '❌ NO CONVIENE',
+        competidores: competidores.map(c => ({
+          fuente: c.fuente,
+          precio: Number(c.precio),
+          fecha:  c.fecha,
+        })),
+      };
+    });
+
+  } catch (error) {
+    console.error('❌ Error en getOpportunitiesWithDetail:', error.message);
+    throw new Error(`Error obteniendo detalle de oportunidades: ${error.message}`);
   }
 };

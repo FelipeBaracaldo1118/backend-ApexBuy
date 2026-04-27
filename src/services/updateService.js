@@ -26,7 +26,7 @@ export const updateSingleBoseProduct = async (handle) => {
 
   const url = `https://bose.co/products/${handle}.js`;
 
-  console.log(`🔎 Actualizando producto Bose: ${handle}`);
+  console.log(`Actualizando producto Bose: ${handle}`);
 
   const data = await getBoseProduct(url);
   const product = await getOrCreateProduct(data);
