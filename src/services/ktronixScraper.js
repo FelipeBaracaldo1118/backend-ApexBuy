@@ -133,6 +133,7 @@ export async function scrapeKtronixProduct(url) {
         available:   true,
         image:       null,
         vendor:      "Ktronix",  //la guente de donde estamos sacando los datos
+        source_url:  url,
       };
 
     console.log(` Scraping completado exitosamente`);

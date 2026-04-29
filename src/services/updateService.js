@@ -29,7 +29,7 @@ export const updateSingleBoseProduct = async (handle) => {
   console.log(`Actualizando producto Bose: ${handle}`);
 
   const data = await getBoseProduct(url);
-  const product = await getOrCreateProduct(data);
+  const product = await getOrCreateProduct(data, source.id);
   await savePrice(product.id, source.id, data.price, data.available);
 
   return {
@@ -94,7 +94,7 @@ export const updateSamsungProducts = async () => {
   for (const url of urls) {
     try {
       const data = await scrapeSamsungProduct(url);
-      const product = await getOrCreateProduct(data);
+      const product = await getOrCreateProduct(data, source.id);
       await savePrice(product.id, source.id, data.price, data.available);
       
       results.push({ url, status: "ok", data });
@@ -117,7 +117,7 @@ export const updateSingleSamsungProduct = async (url) => {
   }
 
   const data = await scrapeSamsungProduct(url);
-  const product = await getOrCreateProduct(data);
+  const product = await getOrCreateProduct(data, source.id);
   await savePrice(product.id, source.id, data.price, data.available);
 
   return { url, status: "ok", data };
@@ -148,7 +148,7 @@ export const updateKtronixProducts = async () => {
     "https://www.ktronix.com/lavadora-secadora-samsung-carga-frontal-bespoke-ai-laundry/p/8806095718972",
     
     // Productos Bose
-    "https://www.ktronix.com/parlante-bose-s1-pro-negro/p/017817837347",
+    "https://www.ktronix.com/parlante-bose-s1-pro-negro/p/017817837316",
     "https://www.ktronix.com/audifonos-bose-quietcomfort-negro/p/017817848961",
     "https://www.ktronix.com/parlante-bose-soundlink-flex-ii-negro/p/017817852470"
   ];
@@ -184,7 +184,7 @@ export const updateKtronixProducts = async () => {
         disponible: data.available ? 'Sí' : 'No'
       });
 
-      const product = await getOrCreateProduct(data);
+      const product = await getOrCreateProduct(data, source.id);
       console.log(` Producto en DB: ${product.name} (ID: ${product.id})`);
 
       await savePrice(product.id, source.id, data.price, data.available);
@@ -238,7 +238,7 @@ export const updateSingleKtronixProduct = async (url) => {
     }
 
     const data = await scrapeKtronixProduct(url);
-    const product = await getOrCreateProduct(data);
+    const product = await getOrCreateProduct(data, source.id);
     await savePrice(product.id, source.id, data.price, data.available);
 
     console.log(` Actualización completada: ${data.title}`);
@@ -316,7 +316,7 @@ export const updateMansionProducts = async () => {
         disponible: data.available ? 'Sí' : 'No'
       });
 
-      const product = await getOrCreateProduct(data);
+      const product = await getOrCreateProduct(data, source.id);
       console.log(` Producto en DB: ${product.name} (ID: ${product.id})`);
 
       await savePrice(product.id, source.id, data.price, data.available);
@@ -370,7 +370,7 @@ export const updateSingleMansionProduct = async (url) => {
     }
 
     const data = await scrapeMansionProduct(url);
-    const product = await getOrCreateProduct(data);
+    const product = await getOrCreateProduct(data, source.id);
     await savePrice(product.id, source.id, data.price, data.available);
 
     console.log(` Actualización completada: ${data.title}`);
@@ -687,7 +687,7 @@ export const updateFalabellaProducts = async () => {
         disponible: data.available ? 'Sí' : 'No'
       });
  
-      const product = await getOrCreateProduct(data);
+      const product = await getOrCreateProduct(data, source.id);
       console.log(`💾 Producto en DB: ${product.name} (ID: ${product.id})`);
  
       await savePrice(product.id, source.id, data.price, data.available ?? true);
@@ -743,7 +743,7 @@ export const updateSingleFalabellaProduct = async (url) => {
     const data = await scrapeFalabellaProduct(url);
     console.log('🐛 DEBUG - data completo:', JSON.stringify(data, null, 2));
     console.log('🐛 DEBUG - data.available:', data.available, typeof data.available);
-    const product = await getOrCreateProduct(data);
+    const product = await getOrCreateProduct(data, source.id);
     await savePrice(product.id, source.id, data.price, data.available ?? true);
  
     console.log(`✅ Actualización completada: ${data.title}`);
@@ -764,4 +764,3 @@ export const updateSingleFalabellaProduct = async (url) => {
     };
   }
 };
- 

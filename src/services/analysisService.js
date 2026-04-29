@@ -551,7 +551,8 @@ export const getOpportunitiesWithDetail = async () => {
           p.product_group_id,
           s.name   AS fuente,
           lp.price,
-          lp.created_at
+          lp.created_at,
+          p.handle AS source_url
         FROM products p
         JOIN sources s        ON p.source_id = s.id
         JOIN latest_prices_competitors lp ON p.id = lp.product_id AND lp.source_id = s.id
@@ -569,9 +570,10 @@ export const getOpportunitiesWithDetail = async () => {
         COALESCE(
           json_agg(
             json_build_object(
-              'fuente', c.fuente,
-              'precio', c.price,
-              'fecha',  c.created_at
+              'fuente',     c.fuente,
+              'precio',     c.price,
+              'fecha',      c.created_at,
+              'source_url', c.source_url
             ) ORDER BY c.price ASC
           ) FILTER (WHERE c.fuente IS NOT NULL),
           '[]'::json
@@ -607,9 +609,10 @@ export const getOpportunitiesWithDetail = async () => {
         margen_porcentaje: margen,
         decision: ganancia > 0 ? '✅ OPORTUNIDAD' : '❌ NO CONVIENE',
         competidores: competidores.map(c => ({
-          fuente: c.fuente,
-          precio: Number(c.precio),
-          fecha:  c.fecha,
+          fuente:     c.fuente,
+          precio:     Number(c.precio),
+          fecha:      c.fecha,
+          source_url: c.source_url || null,
         })),
       };
     });

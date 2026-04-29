@@ -1,5 +1,4 @@
 // SCRAPER DE PRODUCTOS SAMSUNG COLOMBIA CON PUPPETEER
-// Clase correcta confirmada: .pd-buying-price__new-price-currency
 
 import puppeteer from 'puppeteer';
 import { normalizeProduct } from "./normalizeProduct.js";
@@ -8,7 +7,7 @@ export async function scrapeSamsungProduct(url) {
   let browser = null;
 
   try {
-    console.log(`🔍 Iniciando scraping Samsung: ${url}`);
+    console.log(`Iniciando scraping Samsung: ${url}`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -27,14 +26,14 @@ export async function scrapeSamsungProduct(url) {
     );
 
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
-    console.log('✅ Página cargada');
+    console.log(' Página cargada');
 
     // Esperar el elemento de precio confirmado
     try {
       await page.waitForSelector('.pd-buying-price__new-price-currency', { timeout: 12000 });
-      console.log('✅ Elemento de precio encontrado (.pd-buying-price__new-price-currency)');
+      console.log(' Elemento de precio encontrado (.pd-buying-price__new-price-currency)');
     } catch {
-      console.log('⚠️  Selector principal no encontrado, intentando extraer igual...');
+      console.log('Selector principal no encontrado, intentando extraer igual...');
     }
 
     const datos = await page.evaluate(() => {
@@ -48,11 +47,11 @@ export async function scrapeSamsungProduct(url) {
         titulo = h1 ? h1.innerText.trim() : '';
       }
 
-      // ── PRECIO — estrategias en orden de prioridad ────────────────────
+    
       let precioTexto = '';
       let estrategiaUsada = '';
 
-      // 1. Clase confirmada: .pd-buying-price__new-price-currency
+      // 1. analizanado la pagina se detecto la clase donde almacena el precio confirmado
       const priceEl = document.querySelector('.pd-buying-price__new-price-currency');
       if (priceEl) {
         const candidates = [
@@ -69,7 +68,7 @@ export async function scrapeSamsungProduct(url) {
         }
       }
 
-      // 2. Todos los hijos del elemento de precio (el número puede estar en un span hijo)
+      // 2. Todos los hijos del elemento de precio el valor esta dentro de un tag span
       if (!precioTexto && priceEl) {
         const allChildren = priceEl.querySelectorAll('*');
         for (const child of allChildren) {
@@ -91,7 +90,7 @@ export async function scrapeSamsungProduct(url) {
         }
       }
 
-      // 4. JSON-LD structured data
+      // 4. JSON-LD structured data el precio podria estar dentro de un tag script
       if (!precioTexto) {
         const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const s of scripts) {
@@ -181,6 +180,7 @@ export async function scrapeSamsungProduct(url) {
       available:   datos.disponible,
       image:       imagenCompleta || null,
       vendor:      'Samsung',
+      source_url:  url,
     };
 
     console.log(`✅ Samsung OK: ${datosExtraidos.title} → $${precio.toLocaleString('es-CO')}`);

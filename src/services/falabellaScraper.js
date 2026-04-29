@@ -226,6 +226,7 @@ export async function scrapeFalabellaProduct(url) {
       available:   datos.disponible,
       image:       null,
       vendor:      "Falabella",
+      source_url:  url,
     }, "Falabella");
 
   } catch (error)  {

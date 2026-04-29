@@ -12,7 +12,7 @@
 const REQUIRED_FIELDS = ["external_id", "title", "price", "vendor"];
 
 /**
-  Normaliza y valida el output crudo de cualquier servicio de extracción.
+  
  
   @param {object} raw        - Datos inciales de los productos extraidos de cada pagina (boseService, scraper, etc.)
   @param {string} sourceName - Nombre de la fuente donde se extrajo el producto, para mensajes de error
@@ -45,9 +45,10 @@ const REQUIRED_FIELDS = ["external_id", "title", "price", "vendor"];
       title: data.title,
       brand: data.brand || extractBrand(data.title),
       price: parseInt(data.price),
-      available: available,  // ← Siempre boolean
+      available: available,
       image: data.image || null,
-      vendor: sourceName
+      vendor: sourceName,
+      source_url: data.source_url || null,  // URL directa al producto
     };
   }
   
@@ -63,4 +64,3 @@ const REQUIRED_FIELDS = ["external_id", "title", "price", "vendor"];
     
     return 'Unknown';
   }
-

@@ -130,6 +130,7 @@ export async function scrapeMansionProduct(url) {
       available:   true,    // Asumimos disponible (competidor)
       image:       null,    // Sin imagen para competidores
       vendor:      "Mansion", // Fuente, no marca del producto
+      source_url:  url,
     };
 
     console.log(` Scraping completado exitosamente`);

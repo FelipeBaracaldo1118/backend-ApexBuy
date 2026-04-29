@@ -1,9 +1,8 @@
-// ============================================================================
+
 // TEST FALABELLA - ALL PRODUCTS
-// ============================================================================
+
 // Script de testing para probar el scraper de Falabella con todas las URLs
-// Ejecutar: node tests/test-falabella-allproducts.js
-// ============================================================================
+
 
 import { scrapeFalabellaProduct } from '../src/services/falabellaScraper.js';
 
